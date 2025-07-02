@@ -35,6 +35,7 @@ import {
   CheckCircle,
   Clock,
   Key,
+  Edit,
 } from "lucide-react"
 
 interface Voter {
@@ -56,8 +57,10 @@ export default function VotersPage() {
   const [classFilter, setClassFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [showCodesDialog, setShowCodesDialog] = useState(false)
   const [showCodes, setShowCodes] = useState(false)
+  const [editingVoter, setEditingVoter] = useState<Voter | null>(null)
   const [newVoter, setNewVoter] = useState({
     student_id: "",
     full_name: "",
@@ -94,7 +97,7 @@ export default function VotersPage() {
             student_id: "LSS001",
             full_name: "John Doe",
             class: "S6A",
-            voting_code: "VT001",
+            voting_code: "VT001A",
             has_voted: true,
             created_at: new Date().toISOString(),
             voted_at: new Date().toISOString(),
@@ -104,7 +107,16 @@ export default function VotersPage() {
             student_id: "LSS002",
             full_name: "Jane Smith",
             class: "S5B",
-            voting_code: "VT002",
+            voting_code: "VT002B",
+            has_voted: false,
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: "3",
+            student_id: "DEMO123",
+            full_name: "Demo Student",
+            class: "S4A",
+            voting_code: "DEMO456",
             has_voted: false,
             created_at: new Date().toISOString(),
           },
@@ -153,6 +165,17 @@ export default function VotersPage() {
       return
     }
 
+    // Check if student ID already exists
+    const existingVoter = voters.find((v) => v.student_id === newVoter.student_id)
+    if (existingVoter) {
+      toast({
+        title: "Error",
+        description: "Student ID already exists",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSaving(true)
     try {
       const votingCode = generateVotingCode()
@@ -184,7 +207,7 @@ export default function VotersPage() {
         setVoters((prev) => [data[0], ...prev])
         toast({
           title: "Success",
-          description: "Voter added successfully",
+          description: `Voter added successfully. Voting code: ${votingCode}`,
         })
       }
 
@@ -195,6 +218,49 @@ export default function VotersPage() {
       toast({
         title: "Error",
         description: "Failed to add voter",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const editVoter = async () => {
+    if (!editingVoter) return
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          full_name: editingVoter.full_name,
+          class: editingVoter.class,
+        })
+        .eq("id", editingVoter.id)
+
+      if (error) {
+        console.error("Supabase error:", error)
+        // Update local state if database fails
+        setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
+        toast({
+          title: "Demo Mode",
+          description: "Voter updated in demo data",
+        })
+      } else {
+        setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
+        toast({
+          title: "Success",
+          description: "Voter updated successfully",
+        })
+      }
+
+      setEditingVoter(null)
+      setShowEditDialog(false)
+    } catch (error) {
+      console.error("Error updating voter:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update voter",
         variant: "destructive",
       })
     } finally {
@@ -246,13 +312,13 @@ export default function VotersPage() {
         setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
         toast({
           title: "Demo Mode",
-          description: "Voting code updated in demo data",
+          description: `Voting code updated in demo data: ${newCode}`,
         })
       } else {
         setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
         toast({
           title: "Success",
-          description: "Voting code reset successfully",
+          description: `Voting code reset successfully: ${newCode}`,
         })
       }
     } catch (error) {
@@ -306,11 +372,11 @@ export default function VotersPage() {
       ...voters.map((voter) =>
         [
           voter.student_id,
-          voter.full_name,
+          `"${voter.full_name}"`,
           voter.class,
           voter.voting_code,
           voter.has_voted ? "Voted" : "Pending",
-          voter.voted_at || "N/A",
+          voter.voted_at ? new Date(voter.voted_at).toLocaleString() : "N/A",
         ].join(","),
       ),
     ].join("\n")
@@ -319,7 +385,7 @@ export default function VotersPage() {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `voters-${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `lubiri-voters-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
 
@@ -379,8 +445,8 @@ export default function VotersPage() {
                   <Input
                     id="student_id"
                     value={newVoter.student_id}
-                    onChange={(e) => setNewVoter((prev) => ({ ...prev, student_id: e.target.value }))}
-                    placeholder="Enter student ID"
+                    onChange={(e) => setNewVoter((prev) => ({ ...prev, student_id: e.target.value.toUpperCase() }))}
+                    placeholder="Enter student ID (e.g., LSS001)"
                   />
                 </div>
                 <div>
@@ -590,6 +656,18 @@ export default function VotersPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => {
+                          setEditingVoter(voter)
+                          setShowEditDialog(true)
+                        }}
+                        disabled={saving}
+                        title="Edit voter"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => resetVotingCode(voter.id)}
                         disabled={saving}
                         title="Reset voting code"
@@ -623,6 +701,53 @@ export default function VotersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Voter Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Voter</DialogTitle>
+          </DialogHeader>
+          {editingVoter && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit_student_id">Student ID</Label>
+                <Input id="edit_student_id" value={editingVoter.student_id} disabled className="bg-gray-100" />
+              </div>
+              <div>
+                <Label htmlFor="edit_full_name">Full Name</Label>
+                <Input
+                  id="edit_full_name"
+                  value={editingVoter.full_name}
+                  onChange={(e) => setEditingVoter({ ...editingVoter, full_name: e.target.value })}
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_class">Class</Label>
+                <Select
+                  value={editingVoter.class}
+                  onValueChange={(value) => setEditingVoter({ ...editingVoter, class: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls} value={cls}>
+                        {cls}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={editVoter} className="w-full" disabled={saving}>
+                {saving ? "Updating..." : "Update Voter"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

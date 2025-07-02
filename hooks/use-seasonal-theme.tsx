@@ -2,27 +2,35 @@
 
 import { useState, useEffect } from "react"
 
-export function useSeasonalTheme() {
-  const [theme, setTheme] = useState("default")
+export type SeasonalTheme = "default" | "christmas" | "halloween" | "july4th" | "pride"
+
+interface SeasonalThemeState {
+  theme: SeasonalTheme
+  showSeasonalIntro: boolean
+  setShowSeasonalIntro: (show: boolean) => void
+}
+
+export function useSeasonalTheme(): SeasonalThemeState {
+  const [theme, setTheme] = useState<SeasonalTheme>("default")
   const [showSeasonalIntro, setShowSeasonalIntro] = useState(false)
 
   useEffect(() => {
-    const now = new Date()
-    const month = now.getMonth() + 1
-    const day = now.getDate()
+    const currentDate = new Date()
+    const month = currentDate.getMonth() + 1 // JavaScript months are 0-indexed
+    const day = currentDate.getDate()
 
-    let currentTheme = "default"
+    let currentTheme: SeasonalTheme = "default"
 
-    // Christmas (December 25th)
-    if (month === 12 && day === 25) {
+    // Christmas season (December 1-31)
+    if (month === 12) {
       currentTheme = "christmas"
     }
-    // Halloween (October 31st)
-    else if (month === 10 && day === 31) {
+    // Halloween (October 25-31)
+    else if (month === 10 && day >= 25) {
       currentTheme = "halloween"
     }
-    // July 4th
-    else if (month === 7 && day === 4) {
+    // July 4th (July 1-7)
+    else if (month === 7 && day <= 7) {
       currentTheme = "july4th"
     }
     // Pride Month (June)
@@ -32,9 +40,9 @@ export function useSeasonalTheme() {
 
     setTheme(currentTheme)
 
-    // Show seasonal intro if it's a special day and user hasn't seen it
-    const hasSeenIntro = localStorage.getItem(`seasonal-intro-${currentTheme}-${now.getFullYear()}`)
-    if (currentTheme !== "default" && !hasSeenIntro) {
+    // Check if user has already seen the seasonal intro for this theme
+    const hasSeenIntro = localStorage.getItem(`seasonal-intro-${currentTheme}`)
+    if (!hasSeenIntro && currentTheme !== "default") {
       setShowSeasonalIntro(true)
     }
   }, [])
@@ -42,8 +50,7 @@ export function useSeasonalTheme() {
   const handleSetShowSeasonalIntro = (show: boolean) => {
     setShowSeasonalIntro(show)
     if (!show && theme !== "default") {
-      // Mark as seen for this year
-      localStorage.setItem(`seasonal-intro-${theme}-${new Date().getFullYear()}`, "true")
+      localStorage.setItem(`seasonal-intro-${theme}`, "true")
     }
   }
 
