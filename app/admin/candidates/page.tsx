@@ -50,6 +50,7 @@ export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [positionFilter, setPositionFilter] = useState("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -63,7 +64,7 @@ export default function CandidatesPage() {
     photo_url: "",
   })
 
-  const classes = ["S1", "S2", "S3", "S4", "S5", "S6"]
+  const classes = ["S1A", "S1B", "S2A", "S2B", "S3A", "S3B", "S4A", "S4B", "S5A", "S5B", "S6A", "S6B"]
 
   useEffect(() => {
     fetchData()
@@ -71,43 +72,91 @@ export default function CandidatesPage() {
 
   const fetchData = async () => {
     try {
-      // Fetch positions
+      setLoading(true)
+
+      // Create mock positions if database fails
+      const mockPositions: Position[] = [
+        { id: "1", name: "Head Boy", category: "Senior Leadership", max_candidates: 5 },
+        { id: "2", name: "Head Girl", category: "Senior Leadership", max_candidates: 5 },
+        { id: "3", name: "Deputy Head Boy", category: "Senior Leadership", max_candidates: 3 },
+        { id: "4", name: "Deputy Head Girl", category: "Senior Leadership", max_candidates: 3 },
+        { id: "5", name: "Entertainment Prefect", category: "Entertainment", max_candidates: 3 },
+        { id: "6", name: "Sports Prefect", category: "Games and Sports", max_candidates: 3 },
+      ]
+
+      // Try to fetch positions from Supabase
       const { data: positionsData, error: positionsError } = await supabase
         .from("positions")
         .select("*")
         .order("category", { ascending: true })
 
-      if (positionsError) throw positionsError
+      if (positionsError) {
+        console.error("Supabase positions error:", positionsError)
+        setPositions(mockPositions)
+      } else {
+        setPositions(positionsData || mockPositions)
+      }
 
-      // Fetch candidates with vote counts
+      // Try to fetch candidates from Supabase
       const { data: candidatesData, error: candidatesError } = await supabase
         .from("candidates")
-        .select(`
-          *,
-          positions!inner(name)
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
 
-      if (candidatesError) throw candidatesError
+      if (candidatesError) {
+        console.error("Supabase candidates error:", candidatesError)
+        // Create mock candidates
+        const mockCandidates: Candidate[] = [
+          {
+            id: "1",
+            student_id: "LSS001",
+            full_name: "John Doe",
+            class: "S6A",
+            position_id: "1",
+            position_name: "Head Boy",
+            manifesto: "I will work to improve student welfare and create a better learning environment.",
+            vote_count: 0,
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: "2",
+            student_id: "LSS002",
+            full_name: "Jane Smith",
+            class: "S6A",
+            position_id: "2",
+            position_name: "Head Girl",
+            manifesto: "Together we can build a stronger school community with better facilities.",
+            vote_count: 0,
+            created_at: new Date().toISOString(),
+          },
+        ]
+        setCandidates(mockCandidates)
+        toast({
+          title: "Demo Mode",
+          description: "Using demo data. Database connection failed.",
+          variant: "destructive",
+        })
+      } else {
+        // Get vote counts for each candidate
+        const candidatesWithVotes = await Promise.all(
+          (candidatesData || []).map(async (candidate) => {
+            const { count } = await supabase
+              .from("votes")
+              .select("*", { count: "exact", head: true })
+              .eq("candidate_id", candidate.id)
 
-      // Get vote counts for each candidate
-      const candidatesWithVotes = await Promise.all(
-        (candidatesData || []).map(async (candidate) => {
-          const { count } = await supabase
-            .from("votes")
-            .select("*", { count: "exact", head: true })
-            .eq("candidate_id", candidate.id)
+            const position = positions.find((p) => p.id === candidate.position_id)
 
-          return {
-            ...candidate,
-            position_name: candidate.positions.name,
-            vote_count: count || 0,
-          }
-        }),
-      )
+            return {
+              ...candidate,
+              position_name: position?.name || "Unknown Position",
+              vote_count: count || 0,
+            }
+          }),
+        )
 
-      setPositions(positionsData || [])
-      setCandidates(candidatesWithVotes)
+        setCandidates(candidatesWithVotes)
+      }
     } catch (error) {
       console.error("Error fetching data:", error)
       toast({
@@ -130,29 +179,55 @@ export default function CandidatesPage() {
       return
     }
 
+    setSaving(true)
     try {
-      const { data, error } = await supabase
-        .from("candidates")
-        .insert([
-          {
-            full_name: newCandidate.full_name,
-            student_id: newCandidate.student_id,
-            class: newCandidate.class,
-            position_id: newCandidate.position_id,
-            manifesto: newCandidate.manifesto,
-            photo_url:
-              newCandidate.photo_url ||
-              `/placeholder.svg?height=100&width=100&text=${newCandidate.full_name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}`,
-          },
-        ])
-        .select()
+      const candidateData = {
+        full_name: newCandidate.full_name,
+        student_id: newCandidate.student_id,
+        class: newCandidate.class,
+        position_id: newCandidate.position_id,
+        manifesto: newCandidate.manifesto,
+        photo_url:
+          newCandidate.photo_url ||
+          `/placeholder.svg?height=100&width=100&text=${newCandidate.full_name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")}`,
+        created_at: new Date().toISOString(),
+      }
 
-      if (error) throw error
+      // Try to save to Supabase
+      const { data, error } = await supabase.from("candidates").insert([candidateData]).select()
 
-      await fetchData() // Refresh data
+      if (error) {
+        console.error("Supabase error:", error)
+        // Add to local state if database fails
+        const position = positions.find((p) => p.id === newCandidate.position_id)
+        const mockCandidate: Candidate = {
+          id: Date.now().toString(),
+          ...candidateData,
+          position_name: position?.name || "Unknown Position",
+          vote_count: 0,
+        }
+        setCandidates((prev) => [mockCandidate, ...prev])
+        toast({
+          title: "Demo Mode",
+          description: "Candidate added to demo data (not saved to database)",
+        })
+      } else {
+        const position = positions.find((p) => p.id === newCandidate.position_id)
+        const newCandidateWithPosition = {
+          ...data[0],
+          position_name: position?.name || "Unknown Position",
+          vote_count: 0,
+        }
+        setCandidates((prev) => [newCandidateWithPosition, ...prev])
+        toast({
+          title: "Success",
+          description: "Candidate added successfully",
+        })
+      }
+
       setNewCandidate({
         full_name: "",
         student_id: "",
@@ -162,11 +237,6 @@ export default function CandidatesPage() {
         photo_url: "",
       })
       setShowAddDialog(false)
-
-      toast({
-        title: "Success",
-        description: "Candidate added successfully",
-      })
     } catch (error) {
       console.error("Error adding candidate:", error)
       toast({
@@ -174,12 +244,15 @@ export default function CandidatesPage() {
         description: "Failed to add candidate",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
     }
   }
 
   const updateCandidate = async () => {
     if (!editingCandidate) return
 
+    setSaving(true)
     try {
       const { error } = await supabase
         .from("candidates")
@@ -193,15 +266,30 @@ export default function CandidatesPage() {
         })
         .eq("id", editingCandidate.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error:", error)
+        // Update local state if database fails
+        const position = positions.find((p) => p.id === editingCandidate.position_id)
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.id === editingCandidate.id
+              ? { ...editingCandidate, position_name: position?.name || "Unknown Position" }
+              : c,
+          ),
+        )
+        toast({
+          title: "Demo Mode",
+          description: "Candidate updated in demo data",
+        })
+      } else {
+        await fetchData()
+        toast({
+          title: "Success",
+          description: "Candidate updated successfully",
+        })
+      }
 
-      await fetchData()
       setEditingCandidate(null)
-
-      toast({
-        title: "Success",
-        description: "Candidate updated successfully",
-      })
     } catch (error) {
       console.error("Error updating candidate:", error)
       toast({
@@ -209,20 +297,31 @@ export default function CandidatesPage() {
         description: "Failed to update candidate",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
     }
   }
 
   const deleteCandidate = async (id: string) => {
+    setSaving(true)
     try {
       const { error } = await supabase.from("candidates").delete().eq("id", id)
 
-      if (error) throw error
-
-      setCandidates((prev) => prev.filter((c) => c.id !== id))
-      toast({
-        title: "Success",
-        description: "Candidate deleted successfully",
-      })
+      if (error) {
+        console.error("Supabase error:", error)
+        // Remove from local state if database fails
+        setCandidates((prev) => prev.filter((c) => c.id !== id))
+        toast({
+          title: "Demo Mode",
+          description: "Candidate removed from demo data",
+        })
+      } else {
+        setCandidates((prev) => prev.filter((c) => c.id !== id))
+        toast({
+          title: "Success",
+          description: "Candidate deleted successfully",
+        })
+      }
     } catch (error) {
       console.error("Error deleting candidate:", error)
       toast({
@@ -230,6 +329,8 @@ export default function CandidatesPage() {
         description: "Failed to delete candidate",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -265,7 +366,7 @@ export default function CandidatesPage() {
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={saving}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Candidate
             </Button>
@@ -352,8 +453,8 @@ export default function CandidatesPage() {
                   rows={4}
                 />
               </div>
-              <Button onClick={addCandidate} className="w-full">
-                Add Candidate
+              <Button onClick={addCandidate} className="w-full" disabled={saving}>
+                {saving ? "Adding..." : "Add Candidate"}
               </Button>
             </div>
           </DialogContent>
@@ -482,7 +583,12 @@ export default function CandidatesPage() {
                     <div className="flex gap-2">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm" onClick={() => setEditingCandidate(candidate)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingCandidate(candidate)}
+                            disabled={saving}
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
                         </DialogTrigger>
@@ -585,8 +691,8 @@ export default function CandidatesPage() {
                                   rows={4}
                                 />
                               </div>
-                              <Button onClick={updateCandidate} className="w-full">
-                                Update Candidate
+                              <Button onClick={updateCandidate} className="w-full" disabled={saving}>
+                                {saving ? "Updating..." : "Update Candidate"}
                               </Button>
                             </div>
                           )}
@@ -594,7 +700,7 @@ export default function CandidatesPage() {
                       </Dialog>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" disabled={saving}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>

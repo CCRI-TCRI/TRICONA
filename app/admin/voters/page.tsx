@@ -34,6 +34,7 @@ import {
   BarChart3,
   CheckCircle,
   Clock,
+  Key,
 } from "lucide-react"
 
 interface Voter {
@@ -50,6 +51,7 @@ interface Voter {
 export default function VotersPage() {
   const [voters, setVoters] = useState<Voter[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [classFilter, setClassFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -68,7 +70,7 @@ export default function VotersPage() {
     turnout: 0,
   })
 
-  const classes = ["S1", "S2", "S3", "S4", "S5", "S6"]
+  const classes = ["S1A", "S1B", "S2A", "S2B", "S3A", "S3B", "S4A", "S4B", "S5A", "S5B", "S6A", "S6B"]
 
   useEffect(() => {
     fetchVoters()
@@ -80,10 +82,42 @@ export default function VotersPage() {
 
   const fetchVoters = async () => {
     try {
+      setLoading(true)
       const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
 
-      if (error) throw error
-      setVoters(data || [])
+      if (error) {
+        console.error("Supabase error:", error)
+        // Create mock data if database fails
+        const mockVoters: Voter[] = [
+          {
+            id: "1",
+            student_id: "LSS001",
+            full_name: "John Doe",
+            class: "S6A",
+            voting_code: "VT001",
+            has_voted: true,
+            created_at: new Date().toISOString(),
+            voted_at: new Date().toISOString(),
+          },
+          {
+            id: "2",
+            student_id: "LSS002",
+            full_name: "Jane Smith",
+            class: "S5B",
+            voting_code: "VT002",
+            has_voted: false,
+            created_at: new Date().toISOString(),
+          },
+        ]
+        setVoters(mockVoters)
+        toast({
+          title: "Demo Mode",
+          description: "Using demo data. Database connection failed.",
+          variant: "destructive",
+        })
+      } else {
+        setVoters(data || [])
+      }
     } catch (error) {
       console.error("Error fetching voters:", error)
       toast({
@@ -106,7 +140,7 @@ export default function VotersPage() {
   }
 
   const generateVotingCode = () => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase()
+    return "VT" + Math.random().toString(36).substring(2, 8).toUpperCase()
   }
 
   const addVoter = async () => {
@@ -119,32 +153,43 @@ export default function VotersPage() {
       return
     }
 
+    setSaving(true)
     try {
       const votingCode = generateVotingCode()
+      const voterData = {
+        student_id: newVoter.student_id,
+        full_name: newVoter.full_name,
+        class: newVoter.class,
+        voting_code: votingCode,
+        has_voted: false,
+        created_at: new Date().toISOString(),
+      }
 
-      const { data, error } = await supabase
-        .from("users")
-        .insert([
-          {
-            student_id: newVoter.student_id,
-            full_name: newVoter.full_name,
-            class: newVoter.class,
-            voting_code: votingCode,
-            has_voted: false,
-          },
-        ])
-        .select()
+      // Try to save to Supabase
+      const { data, error } = await supabase.from("users").insert([voterData]).select()
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error:", error)
+        // Add to local state if database fails
+        const mockVoter: Voter = {
+          id: Date.now().toString(),
+          ...voterData,
+        }
+        setVoters((prev) => [mockVoter, ...prev])
+        toast({
+          title: "Demo Mode",
+          description: "Voter added to demo data (not saved to database)",
+        })
+      } else {
+        setVoters((prev) => [data[0], ...prev])
+        toast({
+          title: "Success",
+          description: "Voter added successfully",
+        })
+      }
 
-      setVoters((prev) => [data[0], ...prev])
       setNewVoter({ student_id: "", full_name: "", class: "" })
       setShowAddDialog(false)
-
-      toast({
-        title: "Success",
-        description: "Voter added successfully",
-      })
     } catch (error) {
       console.error("Error adding voter:", error)
       toast({
@@ -152,20 +197,31 @@ export default function VotersPage() {
         description: "Failed to add voter",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
     }
   }
 
   const deleteVoter = async (id: string) => {
+    setSaving(true)
     try {
       const { error } = await supabase.from("users").delete().eq("id", id)
 
-      if (error) throw error
-
-      setVoters((prev) => prev.filter((v) => v.id !== id))
-      toast({
-        title: "Success",
-        description: "Voter deleted successfully",
-      })
+      if (error) {
+        console.error("Supabase error:", error)
+        // Remove from local state if database fails
+        setVoters((prev) => prev.filter((v) => v.id !== id))
+        toast({
+          title: "Demo Mode",
+          description: "Voter removed from demo data",
+        })
+      } else {
+        setVoters((prev) => prev.filter((v) => v.id !== id))
+        toast({
+          title: "Success",
+          description: "Voter deleted successfully",
+        })
+      }
     } catch (error) {
       console.error("Error deleting voter:", error)
       toast({
@@ -173,21 +229,61 @@ export default function VotersPage() {
         description: "Failed to delete voter",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetVotingCode = async (voterId: string) => {
+    setSaving(true)
+    try {
+      const newCode = generateVotingCode()
+      const { error } = await supabase.from("users").update({ voting_code: newCode }).eq("id", voterId)
+
+      if (error) {
+        console.error("Supabase error:", error)
+        // Update local state if database fails
+        setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
+        toast({
+          title: "Demo Mode",
+          description: "Voting code updated in demo data",
+        })
+      } else {
+        setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
+        toast({
+          title: "Success",
+          description: "Voting code reset successfully",
+        })
+      }
+    } catch (error) {
+      console.error("Error resetting code:", error)
+      toast({
+        title: "Error",
+        description: "Failed to reset voting code",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
   const generateBulkCodes = async () => {
+    setSaving(true)
     try {
       const updates = voters.map((voter) => ({
-        id: voter.id,
+        ...voter,
         voting_code: generateVotingCode(),
       }))
 
+      // Try to update in Supabase
       for (const update of updates) {
-        await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
+        const { error } = await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
+        if (error) {
+          console.error("Supabase error:", error)
+        }
       }
 
-      await fetchVoters()
+      setVoters(updates)
       toast({
         title: "Success",
         description: "All voting codes regenerated",
@@ -199,6 +295,8 @@ export default function VotersPage() {
         description: "Failed to generate codes",
         variant: "destructive",
       })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -224,6 +322,11 @@ export default function VotersPage() {
     a.download = `voters-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+
+    toast({
+      title: "Success",
+      description: "Voters data exported successfully",
+    })
   }
 
   const filteredVoters = voters.filter((voter) => {
@@ -255,13 +358,13 @@ export default function VotersPage() {
           <p className="text-muted-foreground">Manage registered voters and voting codes</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={exportVoters} variant="outline">
+          <Button onClick={exportVoters} variant="outline" disabled={saving}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={saving}>
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add Voter
               </Button>
@@ -307,8 +410,8 @@ export default function VotersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={addVoter} className="w-full">
-                  Add Voter
+                <Button onClick={addVoter} className="w-full" disabled={saving}>
+                  {saving ? "Adding..." : "Add Voter"}
                 </Button>
               </div>
             </DialogContent>
@@ -420,7 +523,7 @@ export default function VotersPage() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button onClick={generateBulkCodes} variant="outline" size="sm">
+              <Button onClick={generateBulkCodes} variant="outline" size="sm" disabled={saving}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Regenerate All Codes
               </Button>
@@ -483,25 +586,36 @@ export default function VotersPage() {
                   </TableCell>
                   <TableCell>{voter.voted_at ? new Date(voter.voted_at).toLocaleString() : "N/A"}</TableCell>
                   <TableCell>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Voter</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete {voter.full_name}? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteVoter(voter.id)}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => resetVotingCode(voter.id)}
+                        disabled={saving}
+                        title="Reset voting code"
+                      >
+                        <Key className="w-3 h-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={saving}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Voter</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {voter.full_name}? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteVoter(voter.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

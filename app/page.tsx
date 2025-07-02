@@ -8,6 +8,7 @@ import { TutorialPopup } from "@/components/tutorial-popup"
 import { HolidayPopup } from "@/components/holiday-popup"
 import { SeasonalBackground } from "@/components/seasonal-background"
 import { AdminAccessButton } from "@/components/admin-access-button"
+import { SeasonalIntro } from "@/components/seasonal-intro"
 import { motion } from "framer-motion"
 import { CheckCircle, Trophy, Sparkles } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -92,6 +93,7 @@ export default function VotingApp() {
   if (appState === "auth") {
     return (
       <div className={`min-h-screen relative ${getSeasonalContainerClass(season.theme)}`}>
+        <SeasonalIntro />
         <SeasonalBackground />
         <BiometricAuth onAuthSuccess={handleAuthSuccess} />
         <AdminAccessButton />
@@ -106,6 +108,7 @@ export default function VotingApp() {
   if (appState === "tutorial") {
     return (
       <div className="relative">
+        <SeasonalIntro />
         <SeasonalBackground />
         <WelcomeTutorial onComplete={handleTutorialComplete} studentName={studentName || studentId} />
         <AdminAccessButton />
@@ -116,6 +119,7 @@ export default function VotingApp() {
   if (appState === "voting") {
     return (
       <div className="relative">
+        <SeasonalIntro />
         <SeasonalBackground />
         <VotingBallot studentId={studentId} onVoteComplete={handleVoteComplete} />
         <AdminAccessButton />
@@ -126,6 +130,7 @@ export default function VotingApp() {
   if (appState === "complete") {
     return (
       <div className={`min-h-screen relative ${getSeasonalContainerClass(season.theme)}`}>
+        <SeasonalIntro />
         <SeasonalBackground />
         <AdminAccessButton />
         <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
