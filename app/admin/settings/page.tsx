@@ -1,561 +1,441 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import {
-  Settings,
-  Calendar,
-  Clock,
-  Shield,
-  Palette,
-  Bell,
-  Database,
-  Save,
-  RefreshCw,
-  Globe,
-  Lock,
-  Eye,
-  Users,
-} from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase"
+import { Settings, Shield, Palette, Database, Save, RefreshCw, Calendar } from "lucide-react"
 
 interface ElectionSettings {
+  id: string
   election_name: string
-  election_description: string
   start_date: string
   end_date: string
-  voting_duration_minutes: number
   is_active: boolean
   allow_face_recognition: boolean
-  require_face_recognition: boolean
-  show_live_results: boolean
-  allow_vote_changes: boolean
-  max_candidates_per_position: number
-  notification_email: string
-}
-
-interface SeasonalSettings {
-  enable_seasonal_themes: boolean
-  current_theme: string
-  show_holiday_popups: boolean
-  show_tutorial_popup: boolean
+  require_biometric: boolean
+  max_votes_per_user: number
+  show_results_live: boolean
+  enable_tutorial: boolean
+  seasonal_theme: string
   custom_greeting: string
+  holiday_popups_enabled: boolean
 }
 
 export default function SettingsPage() {
-  const [electionSettings, setElectionSettings] = useState<ElectionSettings>({
-    election_name: "Lubiri Secondary School Elections 2024",
-    election_description: "Annual student leadership elections",
-    start_date: "2024-02-01T08:00",
-    end_date: "2024-02-01T16:00",
-    voting_duration_minutes: 2,
+  const [settings, setSettings] = useState<ElectionSettings>({
+    id: "",
+    election_name: "2024 Prefectorial Elections",
+    start_date: "",
+    end_date: "",
     is_active: true,
     allow_face_recognition: true,
-    require_face_recognition: false,
-    show_live_results: true,
-    allow_vote_changes: false,
-    max_candidates_per_position: 5,
-    notification_email: "admin@lubiri.edu.ug",
-  })
-
-  const [seasonalSettings, setSeasonalSettings] = useState<SeasonalSettings>({
-    enable_seasonal_themes: true,
-    current_theme: "default",
-    show_holiday_popups: true,
-    show_tutorial_popup: true,
+    require_biometric: false,
+    max_votes_per_user: 1,
+    show_results_live: false,
+    enable_tutorial: true,
+    seasonal_theme: "default",
     custom_greeting: "",
+    holiday_popups_enabled: true,
   })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [dbStatus, setDbStatus] = useState<"connected" | "disconnected" | "checking">("checking")
 
-  const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const handleSaveElectionSettings = async () => {
-    setLoading(true)
-    try {
-      // In production, save to Supabase
-      // await supabase.from('election_settings').upsert(electionSettings)
-
-      // Mock save for demo
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (error) {
-      console.error("Error saving settings:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSaveSeasonalSettings = async () => {
-    setLoading(true)
-    try {
-      // In production, save to Supabase
-      // await supabase.from('seasonal_settings').upsert(seasonalSettings)
-
-      // Mock save for demo
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (error) {
-      console.error("Error saving seasonal settings:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const themes = [
+  const seasonalThemes = [
     { value: "default", label: "Default" },
-    { value: "fourth-of-july", label: "Fourth of July" },
     { value: "halloween", label: "Halloween" },
     { value: "christmas", label: "Christmas" },
-    { value: "newyear", label: "New Year" },
+    { value: "new-year", label: "New Year" },
     { value: "valentine", label: "Valentine's Day" },
-    { value: "pride", label: "Pride Month" },
+    { value: "easter", label: "Easter" },
+    { value: "independence", label: "Independence Day" },
+    { value: "thanksgiving", label: "Thanksgiving" },
   ]
+
+  useEffect(() => {
+    fetchSettings()
+    checkDatabaseStatus()
+  }, [])
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase.from("election_settings").select("*").single()
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned
+        throw error
+      }
+
+      if (data) {
+        setSettings(data)
+      } else {
+        // Create default settings if none exist
+        await createDefaultSettings()
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch settings",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createDefaultSettings = async () => {
+    try {
+      const defaultSettings = {
+        election_name: "2024 Prefectorial Elections",
+        start_date: new Date().toISOString().split("T")[0],
+        end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        is_active: true,
+        allow_face_recognition: true,
+        require_biometric: false,
+        max_votes_per_user: 1,
+        show_results_live: false,
+        enable_tutorial: true,
+        seasonal_theme: "default",
+        custom_greeting: "",
+        holiday_popups_enabled: true,
+      }
+
+      const { data, error } = await supabase.from("election_settings").insert([defaultSettings]).select().single()
+
+      if (error) throw error
+      setSettings(data)
+    } catch (error) {
+      console.error("Error creating default settings:", error)
+    }
+  }
+
+  const checkDatabaseStatus = async () => {
+    try {
+      const { error } = await supabase.from("users").select("id").limit(1)
+      setDbStatus(error ? "disconnected" : "connected")
+    } catch (error) {
+      setDbStatus("disconnected")
+    }
+  }
+
+  const saveSettings = async () => {
+    setSaving(true)
+    try {
+      const { error } = await supabase.from("election_settings").upsert([settings])
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Settings saved successfully",
+      })
+    } catch (error) {
+      console.error("Error saving settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetToDefaults = async () => {
+    const defaultSettings = {
+      ...settings,
+      election_name: "2024 Prefectorial Elections",
+      is_active: true,
+      allow_face_recognition: true,
+      require_biometric: false,
+      max_votes_per_user: 1,
+      show_results_live: false,
+      enable_tutorial: true,
+      seasonal_theme: "default",
+      custom_greeting: "",
+      holiday_popups_enabled: true,
+    }
+
+    setSettings(defaultSettings)
+    toast({
+      title: "Reset",
+      description: "Settings reset to defaults (not saved yet)",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">System Settings</h2>
-          <p className="text-gray-600">Configure election parameters and system preferences</p>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground">Configure election and system settings</p>
         </div>
         <div className="flex gap-2">
-          {saved && (
-            <Badge variant="default" className="bg-green-500">
-              <Save className="w-3 h-3 mr-1" />
-              Saved
-            </Badge>
-          )}
+          <Button onClick={resetToDefaults} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Reset to Defaults
+          </Button>
+          <Button onClick={saveSettings} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Saving..." : "Save Settings"}
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="election" className="space-y-6">
+      {/* System Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            System Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Database Connection</p>
+              <p className="text-sm text-muted-foreground">Supabase connection status</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  dbStatus === "connected"
+                    ? "bg-green-500"
+                    : dbStatus === "disconnected"
+                      ? "bg-red-500"
+                      : "bg-yellow-500"
+                }`}
+              />
+              <span className="capitalize">{dbStatus}</span>
+              <Button variant="ghost" size="sm" onClick={checkDatabaseStatus} disabled={dbStatus === "checking"}>
+                <RefreshCw className={`w-4 h-4 ${dbStatus === "checking" ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="election" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="election" className="flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            Election
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="seasonal" className="flex items-center gap-2">
-            <Palette className="w-4 h-4" />
-            Seasonal
-          </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            System
-          </TabsTrigger>
+          <TabsTrigger value="election">Election</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
         </TabsList>
 
-        {/* Election Settings */}
-        <TabsContent value="election">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Election Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="election_name">Election Name</Label>
-                  <Input
-                    id="election_name"
-                    value={electionSettings.election_name}
-                    onChange={(e) => setElectionSettings((prev) => ({ ...prev, election_name: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="election_description">Description</Label>
-                  <Textarea
-                    id="election_description"
-                    value={electionSettings.election_description}
-                    onChange={(e) => setElectionSettings((prev) => ({ ...prev, election_description: e.target.value }))}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notification_email">Notification Email</Label>
-                  <Input
-                    id="notification_email"
-                    type="email"
-                    value={electionSettings.notification_email}
-                    onChange={(e) => setElectionSettings((prev) => ({ ...prev, notification_email: e.target.value }))}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="election" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Election Configuration
+              </CardTitle>
+              <CardDescription>Configure basic election settings and timing</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="election_name">Election Name</Label>
+                <Input
+                  id="election_name"
+                  value={settings.election_name}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, election_name: e.target.value }))}
+                  placeholder="Enter election name"
+                />
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Timing & Duration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="start_date">Start Date & Time</Label>
+                  <Label htmlFor="start_date">Start Date</Label>
                   <Input
                     id="start_date"
-                    type="datetime-local"
-                    value={electionSettings.start_date}
-                    onChange={(e) => setElectionSettings((prev) => ({ ...prev, start_date: e.target.value }))}
+                    type="date"
+                    value={settings.start_date}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, start_date: e.target.value }))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="end_date">End Date & Time</Label>
+                  <Label htmlFor="end_date">End Date</Label>
                   <Input
                     id="end_date"
-                    type="datetime-local"
-                    value={electionSettings.end_date}
-                    onChange={(e) => setElectionSettings((prev) => ({ ...prev, end_date: e.target.value }))}
+                    type="date"
+                    value={settings.end_date}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, end_date: e.target.value }))}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="voting_duration">Voting Duration (minutes)</Label>
-                  <Input
-                    id="voting_duration"
-                    type="number"
-                    min="1"
-                    max="60"
-                    value={electionSettings.voting_duration_minutes}
-                    onChange={(e) =>
-                      setElectionSettings((prev) => ({
-                        ...prev,
-                        voting_duration_minutes: Number.parseInt(e.target.value),
-                      }))
-                    }
-                  />
-                  <p className="text-sm text-gray-500 mt-1">Time limit for each voter to complete their ballot</p>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Voting Rules
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Election Active</Label>
-                    <p className="text-sm text-gray-500">Enable voting for students</p>
-                  </div>
-                  <Switch
-                    checked={electionSettings.is_active}
-                    onCheckedChange={(checked) => setElectionSettings((prev) => ({ ...prev, is_active: checked }))}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Show Live Results</Label>
-                    <p className="text-sm text-gray-500">Display real-time vote counts</p>
-                  </div>
-                  <Switch
-                    checked={electionSettings.show_live_results}
-                    onCheckedChange={(checked) =>
-                      setElectionSettings((prev) => ({ ...prev, show_live_results: checked }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Allow Vote Changes</Label>
-                    <p className="text-sm text-gray-500">Let voters modify their selections</p>
-                  </div>
-                  <Switch
-                    checked={electionSettings.allow_vote_changes}
-                    onCheckedChange={(checked) =>
-                      setElectionSettings((prev) => ({ ...prev, allow_vote_changes: checked }))
-                    }
-                  />
-                </div>
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="max_candidates">Max Candidates per Position</Label>
-                  <Input
-                    id="max_candidates"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={electionSettings.max_candidates_per_position}
-                    onChange={(e) =>
-                      setElectionSettings((prev) => ({
-                        ...prev,
-                        max_candidates_per_position: Number.parseInt(e.target.value),
-                      }))
-                    }
-                  />
+                  <Label htmlFor="is_active">Election Active</Label>
+                  <p className="text-sm text-muted-foreground">Enable or disable voting</p>
                 </div>
-              </CardContent>
-            </Card>
+                <Switch
+                  id="is_active"
+                  checked={settings.is_active}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, is_active: checked }))}
+                />
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={handleSaveElectionSettings} disabled={loading} className="w-full">
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Election Settings
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+              <div>
+                <Label htmlFor="max_votes">Max Votes Per User</Label>
+                <Input
+                  id="max_votes"
+                  type="number"
+                  min="1"
+                  value={settings.max_votes_per_user}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, max_votes_per_user: Number.parseInt(e.target.value) }))
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="show_results_live">Show Live Results</Label>
+                  <p className="text-sm text-muted-foreground">Display results in real-time</p>
+                </div>
+                <Switch
+                  id="show_results_live"
+                  checked={settings.show_results_live}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, show_results_live: checked }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Security Settings */}
-        <TabsContent value="security">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  Authentication
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Allow Face Recognition</Label>
-                    <p className="text-sm text-gray-500">Enable biometric authentication</p>
-                  </div>
-                  <Switch
-                    checked={electionSettings.allow_face_recognition}
-                    onCheckedChange={(checked) =>
-                      setElectionSettings((prev) => ({ ...prev, allow_face_recognition: checked }))
-                    }
-                  />
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Security Settings
+              </CardTitle>
+              <CardDescription>Configure authentication and security features</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="allow_face_recognition">Allow Face Recognition</Label>
+                  <p className="text-sm text-muted-foreground">Enable facial recognition for authentication</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Require Face Recognition</Label>
-                    <p className="text-sm text-gray-500">Make biometric auth mandatory</p>
-                  </div>
-                  <Switch
-                    checked={electionSettings.require_face_recognition}
-                    onCheckedChange={(checked) =>
-                      setElectionSettings((prev) => ({ ...prev, require_face_recognition: checked }))
-                    }
-                    disabled={!electionSettings.allow_face_recognition}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                <Switch
+                  id="allow_face_recognition"
+                  checked={settings.allow_face_recognition}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, allow_face_recognition: checked }))}
+                />
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="w-5 h-5" />
-                  Privacy & Security
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Security Features</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• End-to-end vote encryption</li>
-                    <li>• Anonymous ballot casting</li>
-                    <li>• Audit trail logging</li>
-                    <li>• Secure voter authentication</li>
-                  </ul>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="require_biometric">Require Biometric</Label>
+                  <p className="text-sm text-muted-foreground">Make biometric authentication mandatory</p>
                 </div>
-                <Button variant="outline" className="w-full bg-transparent">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Security Logs
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                <Switch
+                  id="require_biometric"
+                  checked={settings.require_biometric}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, require_biometric: checked }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Seasonal Settings */}
-        <TabsContent value="seasonal">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="w-5 h-5" />
-                  Theme Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Enable Seasonal Themes</Label>
-                    <p className="text-sm text-gray-500">Automatically change themes for holidays</p>
-                  </div>
-                  <Switch
-                    checked={seasonalSettings.enable_seasonal_themes}
-                    onCheckedChange={(checked) =>
-                      setSeasonalSettings((prev) => ({ ...prev, enable_seasonal_themes: checked }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="current_theme">Current Theme</Label>
-                  <Select
-                    value={seasonalSettings.current_theme}
-                    onValueChange={(value) => setSeasonalSettings((prev) => ({ ...prev, current_theme: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {themes.map((theme) => (
-                        <SelectItem key={theme.value} value={theme.value}>
-                          {theme.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="custom_greeting">Custom Greeting</Label>
-                  <Input
-                    id="custom_greeting"
-                    value={seasonalSettings.custom_greeting}
-                    onChange={(e) => setSeasonalSettings((prev) => ({ ...prev, custom_greeting: e.target.value }))}
-                    placeholder="Enter custom welcome message"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">Leave empty to use seasonal greetings</p>
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="appearance" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Appearance & Themes
+              </CardTitle>
+              <CardDescription>Customize the look and feel of the voting system</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="seasonal_theme">Seasonal Theme</Label>
+                <Select
+                  value={settings.seasonal_theme}
+                  onValueChange={(value) => setSettings((prev) => ({ ...prev, seasonal_theme: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasonalThemes.map((theme) => (
+                      <SelectItem key={theme.value} value={theme.value}>
+                        {theme.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Popup Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Show Holiday Popups</Label>
-                    <p className="text-sm text-gray-500">Display holiday-themed messages</p>
-                  </div>
-                  <Switch
-                    checked={seasonalSettings.show_holiday_popups}
-                    onCheckedChange={(checked) =>
-                      setSeasonalSettings((prev) => ({ ...prev, show_holiday_popups: checked }))
-                    }
-                  />
+              <div>
+                <Label htmlFor="custom_greeting">Custom Greeting</Label>
+                <Textarea
+                  id="custom_greeting"
+                  value={settings.custom_greeting}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, custom_greeting: e.target.value }))}
+                  placeholder="Enter a custom greeting message..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="holiday_popups">Holiday Popups</Label>
+                  <p className="text-sm text-muted-foreground">Show holiday-themed popups</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Show Tutorial Popup</Label>
-                    <p className="text-sm text-gray-500">Display voting tutorial for new users</p>
-                  </div>
-                  <Switch
-                    checked={seasonalSettings.show_tutorial_popup}
-                    onCheckedChange={(checked) =>
-                      setSeasonalSettings((prev) => ({ ...prev, show_tutorial_popup: checked }))
-                    }
-                  />
-                </div>
-                <Button onClick={handleSaveSeasonalSettings} disabled={loading} className="w-full">
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Seasonal Settings
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                <Switch
+                  id="holiday_popups"
+                  checked={settings.holiday_popups_enabled}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, holiday_popups_enabled: checked }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* System Settings */}
-        <TabsContent value="system">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="w-5 h-5" />
-                  Database Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span>Connection Status</span>
-                  <Badge variant="default" className="bg-green-500">
-                    Connected
-                  </Badge>
+        <TabsContent value="features" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Feature Settings
+              </CardTitle>
+              <CardDescription>Enable or disable various system features</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="enable_tutorial">Enable Tutorial</Label>
+                  <p className="text-sm text-muted-foreground">Show tutorial popup for first-time users</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Total Records</span>
-                  <Badge variant="outline">1,247</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Last Backup</span>
-                  <Badge variant="outline">2 hours ago</Badge>
-                </div>
-                <Button variant="outline" className="w-full bg-transparent">
-                  <Database className="w-4 h-4 mr-2" />
-                  Create Backup
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="w-5 h-5" />
-                  System Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span>Version</span>
-                  <Badge variant="outline">v2.1.0</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Environment</span>
-                  <Badge variant="outline">Production</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Uptime</span>
-                  <Badge variant="outline">7 days</Badge>
-                </div>
-                <Button variant="outline" className="w-full bg-transparent">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  System Health Check
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                <Switch
+                  id="enable_tutorial"
+                  checked={settings.enable_tutorial}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, enable_tutorial: checked }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

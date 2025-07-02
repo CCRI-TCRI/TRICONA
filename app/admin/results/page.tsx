@@ -1,138 +1,225 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { motion } from "framer-motion"
-import { Download, RefreshCw, Trophy, Crown } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { supabase } from "@/lib/supabase"
+import { Trophy, Users, Vote, Crown, TrendingUp } from "lucide-react"
+
+interface ResultData {
+  position_name: string
+  category: string
+  candidates: {
+    id: string
+    full_name: string
+    photo_url?: string
+    vote_count: number
+    percentage: number
+  }[]
+  total_votes: number
+}
 
 export default function ResultsPage() {
+  const [results, setResults] = useState<ResultData[]>([])
   const [loading, setLoading] = useState(true)
+  const [totalVotes, setTotalVotes] = useState(0)
+  const [totalVoters, setTotalVoters] = useState(0)
+  const [turnout, setTurnout] = useState(0)
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setLoading(false), 1000)
+    fetchResults()
+    const interval = setInterval(fetchResults, 5000) // Refresh every 5 seconds
+    return () => clearInterval(interval)
   }, [])
 
-  const mockResults = [
-    {
-      id: "1",
-      position: "Head Prefect",
-      category: "Senior Leadership",
-      candidates: [
-        { name: "John Doe", votes: 45, percentage: 52 },
-        { name: "Jane Smith", votes: 38, percentage: 44 },
-        { name: "Mike Johnson", votes: 3, percentage: 4 },
-      ],
-      totalVotes: 86,
-    },
-    {
-      id: "2",
-      position: "Entertainment Prefect",
-      category: "Entertainment",
-      candidates: [
-        { name: "Sarah Wilson", votes: 32, percentage: 58 },
-        { name: "Tom Brown", votes: 23, percentage: 42 },
-      ],
-      totalVotes: 55,
-    },
-  ]
+  const fetchResults = async () => {
+    try {
+      // Get all positions with their candidates and vote counts
+      const { data: positions, error: positionsError } = await supabase
+        .from("positions")
+        .select("*")
+        .order("category", { ascending: true })
+
+      if (positionsError) throw positionsError
+
+      const resultsData: ResultData[] = []
+
+      for (const position of positions || []) {
+        const { data: candidates, error: candidatesError } = await supabase
+          .from("candidates")
+          .select("*")
+          .eq("position_id", position.id)
+
+        if (candidatesError) throw candidatesError
+
+        const candidatesWithVotes = await Promise.all(
+          (candidates || []).map(async (candidate) => {
+            const { count } = await supabase
+              .from("votes")
+              .select("*", { count: "exact", head: true })
+              .eq("candidate_id", candidate.id)
+
+            return {
+              ...candidate,
+              vote_count: count || 0,
+            }
+          }),
+        )
+
+        const positionTotalVotes = candidatesWithVotes.reduce((sum, c) => sum + c.vote_count, 0)
+
+        const candidatesWithPercentage = candidatesWithVotes
+          .map((candidate) => ({
+            ...candidate,
+            percentage: positionTotalVotes > 0 ? (candidate.vote_count / positionTotalVotes) * 100 : 0,
+          }))
+          .sort((a, b) => b.vote_count - a.vote_count)
+
+        resultsData.push({
+          position_name: position.name,
+          category: position.category,
+          candidates: candidatesWithPercentage,
+          total_votes: positionTotalVotes,
+        })
+      }
+
+      // Get overall statistics
+      const { count: totalVotesCount } = await supabase.from("votes").select("*", { count: "exact", head: true })
+
+      const { count: totalVotersCount } = await supabase.from("users").select("*", { count: "exact", head: true })
+
+      const { count: votedCount } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("has_voted", true)
+
+      setResults(resultsData)
+      setTotalVotes(totalVotesCount || 0)
+      setTotalVoters(totalVotersCount || 0)
+      setTurnout(totalVotersCount ? ((votedCount || 0) / totalVotersCount) * 100 : 0)
+    } catch (error) {
+      console.error("Error fetching results:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading results...</p>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Live Results</h2>
-          <p className="text-gray-600">Real-time election results and analytics</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          <Button>
-            <Download className="w-4 h-4 mr-2" />
-            Export Results
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Live Results</h1>
+        <p className="text-muted-foreground">Real-time election results and statistics</p>
       </div>
 
-      <div className="grid gap-6">
-        {mockResults.map((result, index) => (
-          <motion.div
-            key={result.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Crown className="w-6 h-6 text-purple-500" />
-                    <div>
-                      <h3 className="text-xl font-bold">{result.position}</h3>
-                      <Badge variant="outline">{result.category}</Badge>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">{result.totalVotes}</div>
-                    <div className="text-sm text-gray-500">total votes</div>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {result.candidates.map((candidate, candidateIndex) => (
-                    <div key={candidateIndex} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                              candidateIndex === 0
-                                ? "bg-yellow-500 text-white"
-                                : candidateIndex === 1
-                                  ? "bg-gray-400 text-white"
-                                  : "bg-orange-400 text-white"
-                            }`}
-                          >
-                            {candidateIndex + 1}
+      {/* Overall Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Votes Cast</CardTitle>
+            <Vote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalVotes}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Registered Voters</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalVoters}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Voter Turnout</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{turnout.toFixed(1)}%</div>
+            <Progress value={turnout} className="mt-2" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Results by Position */}
+      <div className="space-y-6">
+        {results.map((position, index) => (
+          <Card key={index}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="w-5 h-5" />
+                    {position.position_name}
+                  </CardTitle>
+                  <CardDescription>
+                    {position.category} • {position.total_votes} votes cast
+                  </CardDescription>
+                </div>
+                <Badge variant="outline">{position.candidates.length} candidates</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {position.candidates.map((candidate, candidateIndex) => (
+                  <div key={candidate.id} className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        {candidateIndex === 0 && candidate.vote_count > 0 && (
+                          <Trophy className="w-5 h-5 text-yellow-500" />
+                        )}
+                        <span className="text-sm font-medium text-muted-foreground">#{candidateIndex + 1}</span>
+                      </div>
+                      <Avatar>
+                        <AvatarImage src={candidate.photo_url || "/placeholder.svg"} alt={candidate.full_name} />
+                        <AvatarFallback>
+                          {candidate.full_name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">{candidate.full_name}</p>
+                        <div className="flex items-center gap-4">
+                          <Progress value={candidate.percentage} className="flex-1" />
+                          <div className="text-right min-w-[80px]">
+                            <p className="font-bold">{candidate.vote_count} votes</p>
+                            <p className="text-sm text-muted-foreground">{candidate.percentage.toFixed(1)}%</p>
                           </div>
-                          <span className="font-medium">{candidate.name}</span>
-                          {candidateIndex === 0 && (
-                            <Badge className="bg-yellow-500">
-                              <Trophy className="w-3 h-3 mr-1" />
-                              Leading
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold">{candidate.votes} votes</div>
-                          <div className="text-sm text-gray-500">{candidate.percentage}%</div>
                         </div>
                       </div>
-                      <Progress value={candidate.percentage} className="h-2" />
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                  </div>
+                ))}
+                {position.candidates.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">No candidates registered for this position</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
+
+      {results.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-muted-foreground">No election data available</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

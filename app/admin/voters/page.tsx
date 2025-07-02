@@ -1,34 +1,40 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { motion } from "framer-motion"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase"
 import {
   Users,
   UserPlus,
   Search,
   Download,
-  Upload,
-  RefreshCw,
+  Trash2,
   Eye,
   EyeOff,
+  RefreshCw,
+  BarChart3,
   CheckCircle,
-  XCircle,
-  Edit,
-  Trash2,
-  Key,
-  FileText,
+  Clock,
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 
 interface Voter {
   id: string
@@ -37,8 +43,8 @@ interface Voter {
   class: string
   voting_code: string
   has_voted: boolean
-  voted_at?: string
   created_at: string
+  voted_at?: string
 }
 
 export default function VotersPage() {
@@ -48,120 +54,176 @@ export default function VotersPage() {
   const [classFilter, setClassFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
-  const [showBulkDialog, setShowBulkDialog] = useState(false)
-  const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null)
+  const [showCodesDialog, setShowCodesDialog] = useState(false)
   const [showCodes, setShowCodes] = useState(false)
-
   const [newVoter, setNewVoter] = useState({
     student_id: "",
     full_name: "",
     class: "",
   })
+  const [stats, setStats] = useState({
+    total: 0,
+    voted: 0,
+    pending: 0,
+    turnout: 0,
+  })
+
+  const classes = ["S1", "S2", "S3", "S4", "S5", "S6"]
 
   useEffect(() => {
-    loadVoters()
+    fetchVoters()
   }, [])
 
-  const loadVoters = async () => {
+  useEffect(() => {
+    calculateStats()
+  }, [voters])
+
+  const fetchVoters = async () => {
     try {
       const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
 
       if (error) throw error
       setVoters(data || [])
     } catch (error) {
-      console.error("Error loading voters:", error)
-      // Mock data for demo
-      setVoters([
-        {
-          id: "1",
-          student_id: "LSS001",
-          full_name: "John Doe",
-          class: "S6A",
-          voting_code: "VT001",
-          has_voted: true,
-          voted_at: "2024-01-15T10:30:00Z",
-          created_at: "2024-01-10T08:00:00Z",
-        },
-        {
-          id: "2",
-          student_id: "LSS002",
-          full_name: "Jane Smith",
-          class: "S5B",
-          voting_code: "VT002",
-          has_voted: false,
-          created_at: "2024-01-10T08:00:00Z",
-        },
-      ])
+      console.error("Error fetching voters:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch voters",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  const generateVotingCode = () => {
-    return "VT" + Math.random().toString(36).substr(2, 6).toUpperCase()
+  const calculateStats = () => {
+    const total = voters.length
+    const voted = voters.filter((v) => v.has_voted).length
+    const pending = total - voted
+    const turnout = total > 0 ? (voted / total) * 100 : 0
+
+    setStats({ total, voted, pending, turnout })
   }
 
-  const handleAddVoter = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const generateVotingCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase()
+  }
 
-    const voterData = {
-      ...newVoter,
-      voting_code: generateVotingCode(),
-      has_voted: false,
-      created_at: new Date().toISOString(),
+  const addVoter = async () => {
+    if (!newVoter.student_id || !newVoter.full_name || !newVoter.class) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      })
+      return
     }
 
     try {
-      const { data, error } = await supabase.from("users").insert([voterData]).select()
+      const votingCode = generateVotingCode()
+
+      const { data, error } = await supabase
+        .from("users")
+        .insert([
+          {
+            student_id: newVoter.student_id,
+            full_name: newVoter.full_name,
+            class: newVoter.class,
+            voting_code: votingCode,
+            has_voted: false,
+          },
+        ])
+        .select()
 
       if (error) throw error
 
       setVoters((prev) => [data[0], ...prev])
       setNewVoter({ student_id: "", full_name: "", class: "" })
       setShowAddDialog(false)
+
+      toast({
+        title: "Success",
+        description: "Voter added successfully",
+      })
     } catch (error) {
       console.error("Error adding voter:", error)
-      // Mock add for demo
-      const mockVoter: Voter = {
-        id: Date.now().toString(),
-        ...voterData,
-      }
-      setVoters((prev) => [mockVoter, ...prev])
-      setNewVoter({ student_id: "", full_name: "", class: "" })
-      setShowAddDialog(false)
+      toast({
+        title: "Error",
+        description: "Failed to add voter",
+        variant: "destructive",
+      })
     }
   }
 
-  const handleDeleteVoter = async (voterId: string) => {
-    if (!confirm("Are you sure you want to delete this voter?")) return
-
+  const deleteVoter = async (id: string) => {
     try {
-      const { error } = await supabase.from("users").delete().eq("id", voterId)
+      const { error } = await supabase.from("users").delete().eq("id", id)
 
       if (error) throw error
 
-      setVoters((prev) => prev.filter((v) => v.id !== voterId))
+      setVoters((prev) => prev.filter((v) => v.id !== id))
+      toast({
+        title: "Success",
+        description: "Voter deleted successfully",
+      })
     } catch (error) {
       console.error("Error deleting voter:", error)
-      // Mock delete for demo
-      setVoters((prev) => prev.filter((v) => v.id !== voterId))
+      toast({
+        title: "Error",
+        description: "Failed to delete voter",
+        variant: "destructive",
+      })
     }
   }
 
-  const handleResetVotingCode = async (voterId: string) => {
-    const newCode = generateVotingCode()
-
+  const generateBulkCodes = async () => {
     try {
-      const { error } = await supabase.from("users").update({ voting_code: newCode }).eq("id", voterId)
+      const updates = voters.map((voter) => ({
+        id: voter.id,
+        voting_code: generateVotingCode(),
+      }))
 
-      if (error) throw error
+      for (const update of updates) {
+        await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
+      }
 
-      setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
+      await fetchVoters()
+      toast({
+        title: "Success",
+        description: "All voting codes regenerated",
+      })
     } catch (error) {
-      console.error("Error resetting code:", error)
-      // Mock update for demo
-      setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
+      console.error("Error generating codes:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate codes",
+        variant: "destructive",
+      })
     }
+  }
+
+  const exportVoters = () => {
+    const csvContent = [
+      ["Student ID", "Full Name", "Class", "Voting Code", "Status", "Voted At"].join(","),
+      ...voters.map((voter) =>
+        [
+          voter.student_id,
+          voter.full_name,
+          voter.class,
+          voter.voting_code,
+          voter.has_voted ? "Voted" : "Pending",
+          voter.voted_at || "N/A",
+        ].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `voters-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
   }
 
   const filteredVoters = voters.filter((voter) => {
@@ -172,47 +234,34 @@ export default function VotersPage() {
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "voted" && voter.has_voted) ||
-      (statusFilter === "not-voted" && !voter.has_voted)
+      (statusFilter === "pending" && !voter.has_voted)
 
     return matchesSearch && matchesClass && matchesStatus
   })
 
-  const stats = {
-    total: voters.length,
-    voted: voters.filter((v) => v.has_voted).length,
-    notVoted: voters.filter((v) => !v.has_voted).length,
-    turnout: voters.length > 0 ? Math.round((voters.filter((v) => v.has_voted).length / voters.length) * 100) : 0,
-  }
-
-  const classes = ["S1A", "S1B", "S2A", "S2B", "S3A", "S3B", "S4A", "S4B", "S5A", "S5B", "S6A", "S6B"]
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading voters...</p>
-        </div>
+        <RefreshCw className="w-8 h-8 animate-spin" />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Voter Management</h2>
-          <p className="text-gray-600">Manage registered voters and their voting codes</p>
+          <h1 className="text-3xl font-bold">Voter Management</h1>
+          <p className="text-muted-foreground">Manage registered voters and voting codes</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={loadVoters} variant="outline">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+          <Button onClick={exportVoters} variant="outline">
+            <Download className="w-4 h-4 mr-2" />
+            Export
           </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button>
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add Voter
               </Button>
@@ -221,15 +270,14 @@ export default function VotersPage() {
               <DialogHeader>
                 <DialogTitle>Add New Voter</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleAddVoter} className="space-y-4">
+              <div className="space-y-4">
                 <div>
                   <Label htmlFor="student_id">Student ID</Label>
                   <Input
                     id="student_id"
                     value={newVoter.student_id}
                     onChange={(e) => setNewVoter((prev) => ({ ...prev, student_id: e.target.value }))}
-                    placeholder="e.g., LSS001"
-                    required
+                    placeholder="Enter student ID"
                   />
                 </div>
                 <div>
@@ -239,7 +287,6 @@ export default function VotersPage() {
                     value={newVoter.full_name}
                     onChange={(e) => setNewVoter((prev) => ({ ...prev, full_name: e.target.value }))}
                     placeholder="Enter full name"
-                    required
                   />
                 </div>
                 <div>
@@ -260,87 +307,68 @@ export default function VotersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1">
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="flex-1">
-                    Add Voter
-                  </Button>
-                </div>
-              </form>
+                <Button onClick={addVoter} className="w-full">
+                  Add Voter
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Voters</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-                </div>
-                <Users className="w-8 h-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Voted</p>
-                  <p className="text-3xl font-bold text-green-600">{stats.voted}</p>
-                </div>
-                <CheckCircle className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Not Voted</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.notVoted}</p>
-                </div>
-                <XCircle className="w-8 h-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Turnout</p>
-                  <p className="text-3xl font-bold text-purple-600">{stats.turnout}%</p>
-                </div>
-                <FileText className="w-8 h-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Voters</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Voted</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.voted}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Turnout</CardTitle>
+            <BarChart3 className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.turnout.toFixed(1)}%</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters and Search */}
       <Card>
-        <CardContent className="p-6">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
+              <Label htmlFor="search">Search</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
+                  id="search"
                   placeholder="Search by name or student ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -348,33 +376,35 @@ export default function VotersPage() {
                 />
               </div>
             </div>
-            <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Filter by class" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {classes.map((cls) => (
-                  <SelectItem key={cls} value={cls}>
-                    {cls}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="voted">Voted</SelectItem>
-                <SelectItem value="not-voted">Not Voted</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={() => setShowCodes(!showCodes)} className="flex items-center gap-2">
-              {showCodes ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showCodes ? "Hide" : "Show"} Codes
-            </Button>
+            <div>
+              <Label htmlFor="class-filter">Class</Label>
+              <Select value={classFilter} onValueChange={setClassFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls} value={cls}>
+                      {cls}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="status-filter">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="voted">Voted</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -382,84 +412,101 @@ export default function VotersPage() {
       {/* Voters Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Registered Voters ({filteredVoters.length})</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button variant="outline" size="sm">
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-              </Button>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Registered Voters</CardTitle>
+              <CardDescription>
+                {filteredVoters.length} of {voters.length} voters
+              </CardDescription>
             </div>
-          </CardTitle>
+            <div className="flex gap-2">
+              <Button onClick={generateBulkCodes} variant="outline" size="sm">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Regenerate All Codes
+              </Button>
+              <Dialog open={showCodesDialog} onOpenChange={setShowCodesDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Codes
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      Voting Codes
+                      <Button variant="ghost" size="sm" onClick={() => setShowCodes(!showCodes)}>
+                        {showCodes ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    {voters.map((voter) => (
+                      <div key={voter.id} className="flex items-center justify-between p-2 border rounded">
+                        <div>
+                          <span className="font-medium">{voter.full_name}</span>
+                          <span className="text-sm text-muted-foreground ml-2">({voter.student_id})</span>
+                        </div>
+                        <div className="font-mono">{showCodes ? voter.voting_code : "••••••"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student ID</TableHead>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Voting Code</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Voted At</TableHead>
-                  <TableHead>Actions</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student ID</TableHead>
+                <TableHead>Full Name</TableHead>
+                <TableHead>Class</TableHead>
+                <TableHead>Voting Code</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Voted At</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredVoters.map((voter) => (
+                <TableRow key={voter.id}>
+                  <TableCell className="font-medium">{voter.student_id}</TableCell>
+                  <TableCell>{voter.full_name}</TableCell>
+                  <TableCell>{voter.class}</TableCell>
+                  <TableCell className="font-mono">{voter.voting_code}</TableCell>
+                  <TableCell>
+                    <Badge variant={voter.has_voted ? "default" : "secondary"}>
+                      {voter.has_voted ? "Voted" : "Pending"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{voter.voted_at ? new Date(voter.voted_at).toLocaleString() : "N/A"}</TableCell>
+                  <TableCell>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Voter</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {voter.full_name}? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteVoter(voter.id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredVoters.map((voter) => (
-                  <TableRow key={voter.id}>
-                    <TableCell className="font-medium">{voter.student_id}</TableCell>
-                    <TableCell>{voter.full_name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{voter.class}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <code
-                        className={`px-2 py-1 rounded text-sm ${showCodes ? "bg-gray-100" : "bg-gray-800 text-gray-800 select-none"}`}
-                      >
-                        {showCodes ? voter.voting_code : "••••••"}
-                      </code>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={voter.has_voted ? "default" : "secondary"}>
-                        {voter.has_voted ? "Voted" : "Not Voted"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{voter.voted_at ? new Date(voter.voted_at).toLocaleString() : "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleResetVotingCode(voter.id)}
-                          title="Reset voting code"
-                        >
-                          <Key className="w-3 h-3" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedVoter(voter)} title="Edit voter">
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteVoter(voter.id)}
-                          title="Delete voter"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

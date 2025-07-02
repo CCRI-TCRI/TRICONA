@@ -1,21 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Vote, Search, RefreshCw, Clock, User, CheckCircle } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { supabase } from "@/lib/supabase"
+import { Search, Vote, Clock, CheckCircle } from "lucide-react"
 
 interface VoteRecord {
   id: string
-  voter_id: string
+  voter_name: string
   candidate_name: string
-  position: string
-  category: string
-  timestamp: string
+  candidate_photo?: string
+  position_name: string
+  vote_time: string
   verified: boolean
 }
 
@@ -23,185 +25,209 @@ export default function VotesPage() {
   const [votes, setVotes] = useState<VoteRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [positionFilter, setPositionFilter] = useState("all")
+  const [positions, setPositions] = useState<string[]>([])
 
   useEffect(() => {
-    loadVotes()
+    fetchVotes()
   }, [])
 
-  const loadVotes = async () => {
-    // Mock data for demo
-    const mockVotes: VoteRecord[] = [
-      {
-        id: "1",
-        voter_id: "LSS001",
-        candidate_name: "John Doe",
-        position: "Head Prefect",
-        category: "Senior Leadership",
-        timestamp: "2024-01-15T10:30:00Z",
-        verified: true,
-      },
-      {
-        id: "2",
-        voter_id: "LSS002",
-        candidate_name: "Jane Smith",
-        position: "Head Prefect",
-        category: "Senior Leadership",
-        timestamp: "2024-01-15T10:32:00Z",
-        verified: true,
-      },
-      {
-        id: "3",
-        voter_id: "LSS003",
-        candidate_name: "Mike Johnson",
-        position: "Entertainment Prefect",
-        category: "Entertainment",
-        timestamp: "2024-01-15T10:35:00Z",
-        verified: true,
-      },
-    ]
+  const fetchVotes = async () => {
+    try {
+      const { data: votesData, error } = await supabase
+        .from("votes")
+        .select(`
+          id,
+          created_at,
+          users!inner(full_name),
+          candidates!inner(
+            full_name,
+            photo_url,
+            positions!inner(name)
+          )
+        `)
+        .order("created_at", { ascending: false })
 
-    setVotes(mockVotes)
-    setLoading(false)
+      if (error) throw error
+
+      const formattedVotes: VoteRecord[] = (votesData || []).map((vote) => ({
+        id: vote.id,
+        voter_name: vote.users.full_name,
+        candidate_name: vote.candidates.full_name,
+        candidate_photo: vote.candidates.photo_url,
+        position_name: vote.candidates.positions.name,
+        vote_time: vote.created_at,
+        verified: true, // All votes are considered verified in this system
+      }))
+
+      setVotes(formattedVotes)
+
+      // Extract unique positions for filter
+      const uniquePositions = [...new Set(formattedVotes.map((v) => v.position_name))]
+      setPositions(uniquePositions)
+    } catch (error) {
+      console.error("Error fetching votes:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredVotes = votes.filter((vote) => {
     const matchesSearch =
-      vote.candidate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vote.voter_id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || vote.category === categoryFilter
+      vote.voter_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vote.candidate_name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesPosition = positionFilter === "all" || vote.position_name === positionFilter
 
-    return matchesSearch && matchesCategory
+    return matchesSearch && matchesPosition
   })
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading votes...</p>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Vote Management</h2>
-          <p className="text-gray-600">Monitor and verify cast votes</p>
-        </div>
-        <Button onClick={loadVotes} variant="outline">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold">Vote Management</h1>
+        <p className="text-muted-foreground">Monitor and verify individual votes</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Votes</p>
-                <p className="text-3xl font-bold text-gray-900">{votes.length}</p>
-              </div>
-              <Vote className="w-8 h-8 text-blue-500" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Votes</CardTitle>
+            <Vote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{votes.length}</div>
           </CardContent>
         </Card>
-
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Verified</p>
-                <p className="text-3xl font-bold text-green-600">{votes.filter((v) => v.verified).length}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-500" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Verified Votes</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{votes.filter((v) => v.verified).length}</div>
           </CardContent>
         </Card>
-
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Last Vote</p>
-                <p className="text-lg font-bold text-gray-900">2 min ago</p>
-              </div>
-              <Clock className="w-8 h-8 text-orange-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Recent Votes</CardTitle>
+            <Clock className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {
+                votes.filter((v) => {
+                  const voteTime = new Date(v.vote_time)
+                  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+                  return voteTime > oneHourAgo
+                }).length
+              }
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
+              <Label htmlFor="search">Search</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by candidate or voter ID..."
+                  id="search"
+                  placeholder="Search by voter or candidate name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Senior Leadership">Senior Leadership</SelectItem>
-                <SelectItem value="Entertainment">Entertainment</SelectItem>
-                <SelectItem value="Games and Sports">Games and Sports</SelectItem>
-              </SelectContent>
-            </Select>
+            <div>
+              <Label htmlFor="position-filter">Position</Label>
+              <Select value={positionFilter} onValueChange={setPositionFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Positions</SelectItem>
+                  {positions.map((position) => (
+                    <SelectItem key={position} value={position}>
+                      {position}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vote ID</TableHead>
-                  <TableHead>Voter</TableHead>
-                  <TableHead>Candidate</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Status</TableHead>
+      {/* Votes Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vote Records</CardTitle>
+          <CardDescription>
+            {filteredVotes.length} of {votes.length} votes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Voter</TableHead>
+                <TableHead>Candidate</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredVotes.map((vote) => (
+                <TableRow key={vote.id}>
+                  <TableCell className="font-medium">{vote.voter_name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={vote.candidate_photo || "/placeholder.svg"} alt={vote.candidate_name} />
+                        <AvatarFallback>
+                          {vote.candidate_name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{vote.candidate_name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{vote.position_name}</Badge>
+                  </TableCell>
+                  <TableCell>{new Date(vote.vote_time).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant={vote.verified ? "default" : "secondary"}>
+                      {vote.verified ? "Verified" : "Pending"}
+                    </Badge>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredVotes.map((vote) => (
-                  <TableRow key={vote.id}>
-                    <TableCell className="font-mono text-sm">{vote.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        {vote.voter_id}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{vote.candidate_name}</TableCell>
-                    <TableCell>{vote.position}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{vote.category}</Badge>
-                    </TableCell>
-                    <TableCell>{new Date(vote.timestamp).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={vote.verified ? "default" : "secondary"}>
-                        {vote.verified ? "Verified" : "Pending"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
+          {filteredVotes.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">No votes found matching your criteria</div>
+          )}
         </CardContent>
       </Card>
     </div>
