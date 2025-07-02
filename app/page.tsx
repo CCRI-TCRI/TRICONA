@@ -10,7 +10,8 @@ import { SeasonalBackground } from "@/components/seasonal-background"
 import { AdminAccessButton } from "@/components/admin-access-button"
 import { SeasonalIntro } from "@/components/seasonal-intro"
 import { motion } from "framer-motion"
-import { CheckCircle, Trophy, Sparkles } from "lucide-react"
+import { CheckCircle, Trophy, Sparkles, RotateCcw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
 import { getCurrentSeason, getSeasonalContainerClass } from "@/lib/seasons"
 
@@ -88,6 +89,15 @@ export default function VotingApp() {
   const handleHolidayClose = () => {
     setShowHolidayGreeting(false)
     localStorage.setItem(`holiday-greeting-${season.theme}`, "true")
+  }
+
+  const handleReturnToLogin = () => {
+    // Reset all state and return to login
+    setAppState("auth")
+    setStudentId("")
+    setStudentName("")
+    setShowTutorial(false)
+    setShowHolidayGreeting(false)
   }
 
   if (appState === "auth") {
@@ -199,6 +209,23 @@ export default function VotingApp() {
                 </motion.div>
               )}
 
+              {/* Return to Login Button */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.3 }}
+                className="mt-8"
+              >
+                <Button
+                  onClick={handleReturnToLogin}
+                  className="bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm"
+                  size="lg"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Return to Login
+                </Button>
+              </motion.div>
+
               <motion.div
                 animate={{
                   scale: [1, 1.05, 1],
@@ -211,7 +238,7 @@ export default function VotingApp() {
                 }}
                 className="mt-8 text-sm opacity-60"
               >
-                You may now close this window
+                You may now close this window or return to login
               </motion.div>
             </motion.div>
           </motion.div>
