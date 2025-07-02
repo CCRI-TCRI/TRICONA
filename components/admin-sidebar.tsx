@@ -27,13 +27,13 @@ import {
   FileText,
   Eye,
   UserPlus,
-  Calendar,
   Shield,
   LogOut,
   ChevronUp,
   Crown,
   GraduationCap,
   User,
+  Palette,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -64,7 +64,7 @@ export function AdminSidebar() {
 
   const handleLogout = () => {
     // Handle logout logic
-    window.location.href = "/admin/login"
+    window.location.href = "/admin-login"
   }
 
   const getRoleIcon = (role: string) => {
@@ -111,6 +111,11 @@ export function AdminSidebar() {
       title: "Dashboard",
       url: "/admin/dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      title: "System Controls",
+      url: "/admin/controls",
+      icon: Settings,
     },
     {
       title: "Live Results",
@@ -188,7 +193,7 @@ export function AdminSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/admin/candidates/new">
+                  <Link href="/admin/candidates">
                     <UserPlus />
                     <span>Add Candidate</span>
                   </Link>
@@ -196,9 +201,17 @@ export function AdminSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/admin/elections/schedule">
-                    <Calendar />
-                    <span>Schedule Election</span>
+                  <Link href="/admin/voters">
+                    <Users />
+                    <span>Add Voter</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href="/admin/settings">
+                    <Palette />
+                    <span>Seasonal Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
