@@ -35,7 +35,7 @@ export function HolidayPopup({ onClose }: HolidayPopupProps) {
           bgClass: "bg-gradient-to-br from-red-600 via-blue-600 to-red-700",
           icon: <Flag className="w-8 h-8" />,
           hasVideo: true,
-          videoSrc: "/fourth-of-july.mp4",
+          videoSrc: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/700_F_615676833_OkjRLHwlUrVvD6nYoOcr8CkViHeNnMAc_ST-vnvwEKsfM1KK0a3uhBAVNMkhrb7ZGb.mp4",
         }
       case "halloween":
         return {

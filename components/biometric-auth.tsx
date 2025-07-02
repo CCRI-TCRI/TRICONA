@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import { Camera, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -27,13 +28,6 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
-
-  // Demo users for testing
-  const demoUsers = [
-    { student_id: "LSS001", voting_code: "VT001A", full_name: "John Doe", class: "S6A" },
-    { student_id: "LSS002", voting_code: "VT002B", full_name: "Jane Smith", class: "S6B" },
-    { student_id: "DEMO123", voting_code: "DEMO456", full_name: "Demo Student", class: "S6C" },
-  ]
 
   useEffect(() => {
     return () => {
@@ -72,7 +66,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
     setError("")
 
     try {
-      // First try to authenticate with Supabase
+      // Authenticate with Supabase database only
       const { data: user, error: dbError } = await supabase
         .from("users")
         .select("*")
@@ -80,26 +74,22 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
         .eq("voting_code", votingCode.toUpperCase())
         .single()
 
-      if (user && !user.has_voted) {
-        toast.success(`Welcome, ${user.full_name}!`)
-        onAuthSuccess(user.student_id)
-        return
-      } else if (user && user.has_voted) {
-        setError("You have already voted in this election.")
-        toast.error("You have already voted in this election.")
+      if (dbError) {
+        console.error("Database error:", dbError)
+        setError("Invalid student ID or voting code. Please check your credentials.")
+        toast.error("Invalid credentials")
         return
       }
 
-      // If database fails or user not found, try demo users
-      const demoUser = demoUsers.find(
-        (u) =>
-          u.student_id.toUpperCase() === studentId.toUpperCase() &&
-          u.voting_code.toUpperCase() === votingCode.toUpperCase(),
-      )
+      if (user) {
+        if (user.has_voted) {
+          setError("This voting code has already been used. Each code can only be used once.")
+          toast.error("Voting code already used")
+          return
+        }
 
-      if (demoUser) {
-        toast.success(`Welcome, ${demoUser.full_name}! (Demo Mode)`)
-        onAuthSuccess(demoUser.student_id)
+        toast.success(`Welcome, ${user.full_name}!`)
+        onAuthSuccess(user.student_id)
         return
       }
 
@@ -107,21 +97,8 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
       toast.error("Invalid credentials")
     } catch (error) {
       console.error("Authentication error:", error)
-
-      // Fallback to demo users if database is unavailable
-      const demoUser = demoUsers.find(
-        (u) =>
-          u.student_id.toUpperCase() === studentId.toUpperCase() &&
-          u.voting_code.toUpperCase() === votingCode.toUpperCase(),
-      )
-
-      if (demoUser) {
-        toast.success(`Welcome, ${demoUser.full_name}! (Demo Mode)`)
-        onAuthSuccess(demoUser.student_id)
-      } else {
-        setError("Authentication failed. Please try again.")
-        toast.error("Authentication failed")
-      }
+      setError("Authentication failed. Please check your connection and try again.")
+      toast.error("Authentication failed")
     } finally {
       setIsLoading(false)
     }
@@ -133,10 +110,10 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
       // Simulate face recognition processing
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // For demo purposes, use the first demo user
-      const demoUser = demoUsers[0]
-      toast.success(`Face recognized: ${demoUser.full_name}! (Demo Mode)`)
-      onAuthSuccess(demoUser.student_id)
+      // For now, face recognition is not fully implemented
+      // You would integrate with a face recognition service here
+      toast.error("Face recognition is not yet available. Please use manual login.")
+      setAuthMethod("manual")
     } catch (error) {
       toast.error("Face recognition failed. Please try manual login.")
       setAuthMethod("manual")
@@ -248,14 +225,10 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   </div>
 
                   {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg border border-red-200"
-                    >
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="text-sm">{error}</span>
-                    </motion.div>
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                   )}
 
                   <Button
@@ -276,11 +249,11 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                     )}
                   </Button>
 
-                  {/* Demo credentials hint */}
+                  {/* Information about getting credentials */}
                   <div className="text-center text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                    <p className="font-semibold mb-1 text-gray-700">Demo Credentials:</p>
-                    <p>ID: DEMO123 | Code: DEMO456</p>
-                    <p>ID: LSS001 | Code: VT001A</p>
+                    <p className="font-semibold mb-1 text-gray-700">Need your credentials?</p>
+                    <p>Contact your class teacher or the election committee</p>
+                    <p>for your Student ID and Voting Code</p>
                   </div>
                 </motion.form>
               ) : (
@@ -322,6 +295,12 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                       </>
                     )}
                   </Button>
+
+                  <div className="text-center text-xs text-gray-500 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    <p className="font-semibold mb-1 text-yellow-700">Face Recognition</p>
+                    <p className="text-yellow-600">This feature is currently under development.</p>
+                    <p className="text-yellow-600">Please use manual login for now.</p>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -329,6 +308,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
             <div className="text-center text-xs text-gray-500 space-y-1">
               <p>Secure authentication powered by Lubiri Secondary School</p>
               <p>Your vote is private and anonymous</p>
+              <p className="font-semibold text-orange-600">⚠️ Each voting code can only be used once</p>
             </div>
           </CardContent>
         </Card>
