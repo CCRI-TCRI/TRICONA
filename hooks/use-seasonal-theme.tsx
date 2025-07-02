@@ -4,20 +4,20 @@ import { useState, useEffect } from "react"
 
 type SeasonalTheme = "default" | "christmas" | "halloween" | "july4th" | "pride"
 
-interface UseSeasonalThemeReturn {
+interface SeasonalThemeHook {
   theme: SeasonalTheme
   showSeasonalIntro: boolean
   setShowSeasonalIntro: (show: boolean) => void
 }
 
-export function useSeasonalTheme(): UseSeasonalThemeReturn {
+export function useSeasonalTheme(): SeasonalThemeHook {
   const [theme, setTheme] = useState<SeasonalTheme>("default")
   const [showSeasonalIntro, setShowSeasonalIntro] = useState(false)
 
   useEffect(() => {
-    const currentDate = new Date()
-    const month = currentDate.getMonth() + 1 // 1-12
-    const day = currentDate.getDate()
+    const now = new Date()
+    const month = now.getMonth() + 1 // JavaScript months are 0-indexed
+    const day = now.getDate()
 
     let currentTheme: SeasonalTheme = "default"
 
@@ -40,7 +40,7 @@ export function useSeasonalTheme(): UseSeasonalThemeReturn {
 
     setTheme(currentTheme)
 
-    // Check if user has seen seasonal intro for this theme
+    // Check if user has already seen the seasonal intro for this theme
     const hasSeenIntro = localStorage.getItem(`seasonal-intro-${currentTheme}`)
     if (!hasSeenIntro && currentTheme !== "default") {
       setShowSeasonalIntro(true)

@@ -148,20 +148,20 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-        <Card className="backdrop-blur-lg bg-white/10 border-white/20 text-white shadow-2xl">
+        <Card className="bg-white shadow-2xl border-0">
           <CardHeader className="text-center space-y-4">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2 }}
-              className="mx-auto w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg"
+              className="mx-auto w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center shadow-lg border"
             >
               <img src="/logo.png" alt="Lubiri Secondary School" className="w-20 h-20 object-contain" />
             </motion.div>
             <div>
-              <CardTitle className="text-2xl font-bold">Lubiri Secondary School</CardTitle>
-              <p className="text-blue-200 mt-2">2024 Prefectorial Elections</p>
-              <Badge variant="secondary" className="mt-2 bg-white/20 text-white">
+              <CardTitle className="text-2xl font-bold text-gray-800">Lubiri Secondary School</CardTitle>
+              <p className="text-gray-600 mt-2">2024 Prefectorial Elections</p>
+              <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
                 Secure Voting System
               </Badge>
             </div>
@@ -169,7 +169,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
           <CardContent className="space-y-6">
             {/* Authentication Method Toggle */}
-            <div className="flex space-x-2 bg-white/10 rounded-lg p-1">
+            <div className="flex space-x-2 bg-gray-100 rounded-lg p-1">
               <Button
                 variant={authMethod === "manual" ? "default" : "ghost"}
                 size="sm"
@@ -177,7 +177,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   setAuthMethod("manual")
                   stopCamera()
                 }}
-                className="flex-1 text-white"
+                className="flex-1"
               >
                 <User className="w-4 h-4 mr-2" />
                 Manual Login
@@ -189,7 +189,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   setAuthMethod("face")
                   startCamera()
                 }}
-                className="flex-1 text-white"
+                className="flex-1"
               >
                 <Camera className="w-4 h-4 mr-2" />
                 Face Recognition
@@ -207,7 +207,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   className="space-y-4"
                 >
                   <div className="space-y-2">
-                    <Label htmlFor="studentId" className="text-white">
+                    <Label htmlFor="studentId" className="text-gray-700">
                       Student ID
                     </Label>
                     <Input
@@ -216,13 +216,13 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                       placeholder="Enter your student ID"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      className="border-gray-300 focus:border-blue-500"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="votingCode" className="text-white">
+                    <Label htmlFor="votingCode" className="text-gray-700">
                       Voting Code
                     </Label>
                     <div className="relative">
@@ -232,7 +232,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                         placeholder="Enter your voting code"
                         value={votingCode}
                         onChange={(e) => setVotingCode(e.target.value)}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-white/60 pr-10"
+                        className="border-gray-300 focus:border-blue-500 pr-10"
                         required
                       />
                       <Button
@@ -240,7 +240,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-0 top-0 h-full px-3 text-white/60 hover:text-white"
+                        className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-gray-600"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
@@ -251,7 +251,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center space-x-2 text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/20"
+                      className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg border border-red-200"
                     >
                       <AlertCircle className="w-4 h-4" />
                       <span className="text-sm">{error}</span>
@@ -277,8 +277,8 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   </Button>
 
                   {/* Demo credentials hint */}
-                  <div className="text-center text-xs text-white/60 bg-white/5 p-3 rounded-lg">
-                    <p className="font-semibold mb-1">Demo Credentials:</p>
+                  <div className="text-center text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                    <p className="font-semibold mb-1 text-gray-700">Demo Credentials:</p>
                     <p>ID: DEMO123 | Code: DEMO456</p>
                     <p>ID: LSS001 | Code: VT001A</p>
                   </div>
@@ -292,14 +292,14 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   className="space-y-4"
                 >
                   <div className="relative">
-                    <video ref={videoRef} autoPlay muted className="w-full h-64 object-cover rounded-lg bg-black/20" />
+                    <video ref={videoRef} autoPlay muted className="w-full h-64 object-cover rounded-lg bg-gray-100" />
                     <canvas ref={canvasRef} className="hidden" />
 
                     {!stream && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
                         <div className="text-center">
-                          <Camera className="w-12 h-12 mx-auto mb-2 text-white/60" />
-                          <p className="text-white/80">Camera access required</p>
+                          <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                          <p className="text-gray-600">Camera access required</p>
                         </div>
                       </div>
                     )}
@@ -325,6 +325,11 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <div className="text-center text-xs text-gray-500 space-y-1">
+              <p>Secure authentication powered by Lubiri Secondary School</p>
+              <p>Your vote is private and anonymous</p>
+            </div>
           </CardContent>
         </Card>
       </motion.div>
