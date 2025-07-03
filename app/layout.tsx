@@ -1,27 +1,24 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
 import "./globals.css"
 
+const inter = Inter({ subsets: ["latin"] })
+
 export const metadata: Metadata = {
-  title: "Lubiri Secondary School - Election System",
-  description: "Digital voting platform for Lubiri Secondary School prefectorial elections",
-  generator: "v0.dev",
-  icons: {
-    icon: "/favicon.ico",
-  },
+  title: "Lubiri E-Voting System",
+  description: "Secure electronic voting system for Lubiri Secondary School",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
-      <body>{children}</body>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }
