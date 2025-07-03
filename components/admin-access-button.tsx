@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Shield, Lock } from "lucide-react"
+import { Shield, Lock, GraduationCap, Users } from "lucide-react"
 import { motion } from "framer-motion"
+import Image from "next/image"
+import Link from "next/link"
 
 export function AdminAccessButton() {
   const [isOpen, setIsOpen] = useState(false)
@@ -49,14 +51,75 @@ export function AdminAccessButton() {
             <Shield className="w-6 h-6 text-white" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-center justify-center">
-              <Lock className="w-5 h-5 text-primary" />
-              Admin Access
-            </DialogTitle>
+            <div className="flex flex-col items-center space-y-4">
+              <Image
+                src="/school-logo.png"
+                alt="Lubiri Secondary School"
+                width={80}
+                height={80}
+                className="rounded-lg"
+              />
+              <DialogTitle className="flex items-center gap-2 text-center justify-center">
+                <Lock className="w-5 h-5 text-primary" />
+                System Access
+              </DialogTitle>
+            </div>
           </DialogHeader>
+
+          {/* Role Access Buttons */}
+          <div className="space-y-3 mb-4">
+            <div className="text-sm font-medium text-center text-gray-700 mb-3">Select Your Role</div>
+
+            <Link href="/chairperson/login">
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-3 h-12 border-blue-200 hover:bg-blue-50 bg-transparent"
+                onClick={() => setIsOpen(false)}
+              >
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium text-blue-700">Electoral Commission</div>
+                  <div className="text-xs text-blue-600">Chairperson Access</div>
+                </div>
+              </Button>
+            </Link>
+
+            <Link href="/headteacher/login">
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-3 h-12 border-green-200 hover:bg-green-50 bg-transparent"
+                onClick={() => setIsOpen(false)}
+              >
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <GraduationCap className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium text-green-700">School Administration</div>
+                  <div className="text-xs text-green-600">Headteacher Access</div>
+                </div>
+              </Button>
+            </Link>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Or</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Admin Login Form */}
           <form onSubmit={handleLogin} className="space-y-4">
+            <div className="text-sm font-medium text-center text-gray-700 mb-3">
+              <Users className="w-4 h-4 inline mr-1" />
+              Admin Panel Access
+            </div>
             <div>
               <Label htmlFor="username">Username</Label>
               <Input
