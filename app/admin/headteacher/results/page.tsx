@@ -11,20 +11,22 @@ import {
   Trophy,
   Crown,
   Star,
-  TrendingUp,
   RefreshCw,
-  Eye,
-  LogOut,
-  GraduationCap,
-  School,
+  Download,
+  Printer,
+  Calendar,
   Users,
+  TrendingUp,
+  GraduationCap,
+  LogOut,
+  School,
   Award,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 interface StudentLeadershipResult {
-  positionId: string
-  positionTitle: string
+  postId: string
+  postTitle: string
   category: string
   candidates: {
     id: string
@@ -32,20 +34,21 @@ interface StudentLeadershipResult {
     votes: number
     percentage: number
     isElected: boolean
-    isLeading: boolean
+    position: number
   }[]
   totalVotes: number
-  status: "active" | "completed"
+  participationRate: number
 }
 
-export default function HeadteacherResultsPage() {
+export default function HeadteacherResults() {
   const [results, setResults] = useState<StudentLeadershipResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [schoolStats, setSchoolStats] = useState({
     totalStudents: 0,
     participatingStudents: 0,
+    participationRate: 0,
     leadershipPositions: 0,
-    democraticParticipation: 0,
   })
   const router = useRouter()
 
@@ -67,7 +70,7 @@ export default function HeadteacherResultsPage() {
       })
       .subscribe()
 
-    const interval = setInterval(loadResults, 30000) // Auto-refresh every 30 seconds
+    const interval = setInterval(loadResults, 60000) // Refresh every minute
 
     return () => {
       subscription.unsubscribe()
@@ -77,24 +80,6 @@ export default function HeadteacherResultsPage() {
 
   const loadResults = async () => {
     try {
-      // Load school statistics
-      const { count: totalStudents } = await supabase.from("users").select("*", { count: "exact", head: true })
-      const { count: participatingStudents } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("has_voted", true)
-      const { count: leadershipPositions } = await supabase
-        .from("positions")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true)
-
-      setSchoolStats({
-        totalStudents: totalStudents || 0,
-        participatingStudents: participatingStudents || 0,
-        leadershipPositions: leadershipPositions || 0,
-        democraticParticipation: totalStudents ? Math.round(((participatingStudents || 0) / totalStudents) * 100) : 0,
-      })
-
       // Load student leadership results
       const { data: positions } = await supabase
         .from("positions")
@@ -104,34 +89,60 @@ export default function HeadteacherResultsPage() {
           election_categories (name)
         `)
         .eq("is_active", true)
+        .order("order_index")
+
+      // Load school participation stats
+      const { count: totalStudents } = await supabase.from("users").select("*", { count: "exact", head: true })
+      const { count: participatingStudents } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("has_voted", true)
 
       const leadershipResults: StudentLeadershipResult[] =
         positions?.map((position) => {
-          const totalPositionVotes = position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)
-          const maxVotes = Math.max(...position.candidates.map((c: any) => c.vote_count))
-
-          const candidates = position.candidates
+          const sortedCandidates = position.candidates
             .map((candidate: any) => ({
               id: candidate.id,
               name: candidate.full_name,
               votes: candidate.vote_count,
-              percentage: totalPositionVotes > 0 ? Math.round((candidate.vote_count / totalPositionVotes) * 100) : 0,
-              isElected: candidate.vote_count === maxVotes && totalPositionVotes > 0,
-              isLeading: candidate.vote_count === maxVotes,
+              percentage:
+                position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0) > 0
+                  ? Math.round(
+                      (candidate.vote_count /
+                        position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)) *
+                        100,
+                    )
+                  : 0,
+              isElected: false,
+              position: 0,
             }))
             .sort((a: any, b: any) => b.votes - a.votes)
+            .map((candidate: any, index: number) => ({
+              ...candidate,
+              position: index + 1,
+              isElected: index === 0 && candidate.votes > 0,
+            }))
+
+          const totalVotes = position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)
 
           return {
-            positionId: position.id,
-            positionTitle: position.title,
+            postId: position.id,
+            postTitle: position.title,
             category: position.election_categories?.name || "Student Leadership",
-            candidates,
-            totalVotes: totalPositionVotes,
-            status: "active" as const,
+            candidates: sortedCandidates,
+            totalVotes,
+            participationRate: totalStudents ? Math.round((totalVotes / totalStudents) * 100) : 0,
           }
         }) || []
 
       setResults(leadershipResults)
+      setSchoolStats({
+        totalStudents: totalStudents || 0,
+        participatingStudents: participatingStudents || 0,
+        participationRate: totalStudents ? Math.round(((participatingStudents || 0) / totalStudents) * 100) : 0,
+        leadershipPositions: leadershipResults.length,
+      })
+      setLastUpdated(new Date())
     } catch (error) {
       console.error("Error loading results:", error)
     } finally {
@@ -171,9 +182,22 @@ export default function HeadteacherResultsPage() {
     }
   }
 
+  const getPositionBadge = (position: number) => {
+    switch (position) {
+      case 1:
+        return "bg-yellow-500 text-white"
+      case 2:
+        return "bg-gray-400 text-white"
+      case 3:
+        return "bg-amber-600 text-white"
+      default:
+        return "bg-gray-300 text-gray-700"
+    }
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
           <p className="text-lg font-medium">Loading student leadership results...</p>
@@ -197,7 +221,7 @@ export default function HeadteacherResultsPage() {
             </div>
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-gray-900">Student Leadership Results</h2>
-              <p className="text-gray-600">Lubiri Secondary School - Democratic Election Outcomes</p>
+              <p className="text-gray-600">Lubiri Secondary School - Democratic Leadership Selection</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -205,10 +229,14 @@ export default function HeadteacherResultsPage() {
               <RefreshCw className="w-4 h-4" />
               <span>Refresh</span>
             </Button>
-            <Badge variant="outline" className="px-3 py-1">
-              <Eye className="w-4 h-4 mr-1" />
-              Live Results
-            </Badge>
+            <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </Button>
+            <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+              <Printer className="w-4 h-4" />
+              <span>Print</span>
+            </Button>
             <Button onClick={handleLogout} variant="outline" className="text-red-600 hover:text-red-700 bg-transparent">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
@@ -216,44 +244,86 @@ export default function HeadteacherResultsPage() {
           </div>
         </motion.div>
 
-        {/* School Statistics */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <School className="w-5 h-5" />
-                School Democratic Participation
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">{schoolStats.totalStudents}</div>
-                  <div className="text-sm text-muted-foreground">Total Students</div>
+        {/* School Stats */}
+        <div className="grid gap-6 md:grid-cols-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Students</p>
+                    <p className="text-3xl font-bold">{schoolStats.totalStudents.toLocaleString()}</p>
+                  </div>
+                  <School className="w-8 h-8 text-blue-200" />
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">{schoolStats.participatingStudents}</div>
-                  <div className="text-sm text-muted-foreground">Participated in Election</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Student Participation</p>
+                    <p className="text-3xl font-bold">{schoolStats.participationRate}%</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-green-200" />
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-600">{schoolStats.leadershipPositions}</div>
-                  <div className="text-sm text-muted-foreground">Leadership Positions</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Participating Students</p>
+                    <p className="text-3xl font-bold">{schoolStats.participatingStudents.toLocaleString()}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-purple-200" />
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-orange-600">{schoolStats.democraticParticipation}%</div>
-                  <div className="text-sm text-muted-foreground">Democratic Participation</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Leadership Positions</p>
+                    <p className="text-3xl font-bold">{schoolStats.leadershipPositions}</p>
+                  </div>
+                  <Award className="w-8 h-8 text-orange-200" />
                 </div>
-              </div>
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Student Engagement in School Leadership</span>
-                  <span className="text-sm text-muted-foreground">{schoolStats.democraticParticipation}%</span>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* School Leadership Message */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                  <GraduationCap className="w-6 h-6 text-white" />
                 </div>
-                <Progress value={schoolStats.democraticParticipation} className="h-3" />
-                <p className="text-sm text-muted-foreground mt-2">
-                  {schoolStats.democraticParticipation}% of students have actively participated in choosing their school
-                  leaders
-                </p>
+                <div>
+                  <h3 className="font-bold text-green-800 text-lg">Democratic Leadership Development</h3>
+                  <p className="text-green-700">
+                    Our students are actively participating in the democratic process, developing leadership skills and
+                    civic responsibility through this election.
+                  </p>
+                </div>
+                <div className="ml-auto">
+                  <Badge variant="outline" className="border-green-300 text-green-700">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    Updated: {lastUpdated.toLocaleTimeString()}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -263,26 +333,25 @@ export default function HeadteacherResultsPage() {
         <div className="space-y-6">
           {results.map((result, index) => (
             <motion.div
-              key={result.positionId}
+              key={result.postId}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + index * 0.1 }}
+              transition={{ delay: 0.6 + index * 0.1 }}
             >
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden shadow-lg">
                 <CardHeader className={`bg-gradient-to-r ${getCategoryColor(result.category)} text-white`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {getCategoryIcon(result.category)}
                       <div>
-                        <CardTitle className="text-xl">{result.positionTitle}</CardTitle>
-                        <Badge variant="secondary" className="bg-white/20 text-white border-white/30 mt-1">
-                          {result.category}
-                        </Badge>
+                        <CardTitle className="text-2xl font-bold">{result.postTitle}</CardTitle>
+                        <p className="text-white/90">{result.category}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{result.totalVotes}</div>
-                      <div className="text-sm opacity-90">student votes</div>
+                      <div className="text-3xl font-bold">{result.totalVotes}</div>
+                      <div className="text-sm text-white/90">Student Votes</div>
+                      <div className="text-sm text-white/80">{result.participationRate}% participation</div>
                     </div>
                   </div>
                 </CardHeader>
@@ -294,74 +363,59 @@ export default function HeadteacherResultsPage() {
                         key={candidate.id}
                         className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
                           candidate.isElected
-                            ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 shadow-md"
-                            : candidate.isLeading
-                              ? "bg-blue-50 border-blue-300"
-                              : "bg-gray-50 border-gray-200"
+                            ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-400 shadow-md"
+                            : "bg-gray-50 border-gray-200"
                         }`}
                       >
                         <div className="flex items-center gap-4">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                              candidate.isElected
-                                ? "bg-green-500 text-white"
-                                : candidateIndex === 0
-                                  ? "bg-blue-500 text-white"
-                                  : candidateIndex === 1
-                                    ? "bg-gray-400 text-white"
-                                    : "bg-gray-300 text-gray-700"
-                            }`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${getPositionBadge(candidate.position)}`}
                           >
-                            {candidateIndex + 1}
+                            {candidate.position}
                           </div>
                           <div>
                             <div className="font-bold text-lg text-gray-900">{candidate.name}</div>
-                            <div className="text-sm text-gray-600">{candidate.votes} student votes</div>
+                            <div className="text-sm text-gray-600">
+                              {candidate.votes} student votes • {candidate.percentage}% support
+                            </div>
                           </div>
+                          {candidate.isElected && (
+                            <Badge className="bg-yellow-500 text-white ml-2">
+                              <Trophy className="w-3 h-3 mr-1" />
+                              ELECTED
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-900">{candidate.percentage}%</div>
-                          {candidate.isElected && (
-                            <div className="text-sm text-green-600 font-bold flex items-center gap-1">
-                              <Award className="w-4 h-4" />
-                              Elected Leader
-                            </div>
-                          )}
-                          {candidate.isLeading && !candidate.isElected && (
-                            <div className="text-sm text-blue-600 font-medium flex items-center gap-1">
-                              <TrendingUp className="w-4 h-4" />
-                              Leading
-                            </div>
-                          )}
+                          <div className="w-32">
+                            <Progress value={candidate.percentage} className="h-2" />
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-
-                  {result.totalVotes === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>No student votes cast for this leadership position yet</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </motion.div>
           ))}
         </div>
 
-        {results.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-center py-12"
-          >
-            <GraduationCap className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Student Leadership Results Available</h3>
-            <p className="text-gray-500">Student leadership election results will appear here once voting begins.</p>
-          </motion.div>
-        )}
+        {/* School Footer */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
+          <Card className="bg-gradient-to-r from-green-800 to-emerald-800 text-white">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <img src="/logo.png" alt="Lubiri Secondary School" className="w-6 h-6" />
+                <span className="font-bold">Lubiri Secondary School</span>
+              </div>
+              <p className="text-green-100 text-sm">
+                Fostering democratic values and leadership development through transparent student elections. Building
+                tomorrow's leaders today.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   )

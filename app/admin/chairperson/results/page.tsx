@@ -7,12 +7,26 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { Trophy, Crown, Star, Vote, TrendingUp, RefreshCw, Eye, LogOut, Shield, BarChart3, Users } from "lucide-react"
+import {
+  Trophy,
+  Crown,
+  Star,
+  Vote,
+  RefreshCw,
+  Download,
+  Printer,
+  Calendar,
+  Users,
+  TrendingUp,
+  BarChart3,
+  Shield,
+  LogOut,
+} from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 interface ElectionResult {
-  positionId: string
-  positionTitle: string
+  postId: string
+  postTitle: string
   category: string
   candidates: {
     id: string
@@ -20,19 +34,21 @@ interface ElectionResult {
     votes: number
     percentage: number
     isWinner: boolean
-    isLeading: boolean
+    position: number
   }[]
   totalVotes: number
-  status: "active" | "completed"
+  status: "completed" | "ongoing"
 }
 
-export default function ChairpersonResultsPage() {
+export default function ChairpersonResults() {
   const [results, setResults] = useState<ElectionResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [totalStats, setTotalStats] = useState({
     totalVoters: 0,
     totalVotes: 0,
-    participationRate: 0,
+    turnoutPercentage: 0,
+    completedPositions: 0,
   })
   const router = useRouter()
 
@@ -54,7 +70,7 @@ export default function ChairpersonResultsPage() {
       })
       .subscribe()
 
-    const interval = setInterval(loadResults, 30000) // Auto-refresh every 30 seconds
+    const interval = setInterval(loadResults, 60000) // Refresh every minute
 
     return () => {
       subscription.unsubscribe()
@@ -64,20 +80,6 @@ export default function ChairpersonResultsPage() {
 
   const loadResults = async () => {
     try {
-      // Load total statistics
-      const { count: totalVoters } = await supabase.from("users").select("*", { count: "exact", head: true })
-      const { count: totalVotes } = await supabase.from("votes").select("*", { count: "exact", head: true })
-      const { count: votedCount } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("has_voted", true)
-
-      setTotalStats({
-        totalVoters: totalVoters || 0,
-        totalVotes: totalVotes || 0,
-        participationRate: totalVoters ? Math.round(((votedCount || 0) / totalVoters) * 100) : 0,
-      })
-
       // Load election results
       const { data: positions } = await supabase
         .from("positions")
@@ -87,34 +89,55 @@ export default function ChairpersonResultsPage() {
           election_categories (name)
         `)
         .eq("is_active", true)
+        .order("order_index")
+
+      // Load overall stats
+      const { count: totalVoters } = await supabase.from("users").select("*", { count: "exact", head: true })
+      const { count: totalVotes } = await supabase.from("votes").select("*", { count: "exact", head: true })
 
       const electionResults: ElectionResult[] =
         positions?.map((position) => {
-          const totalPositionVotes = position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)
-          const maxVotes = Math.max(...position.candidates.map((c: any) => c.vote_count))
-
-          const candidates = position.candidates
-            .map((candidate: any) => ({
+          const sortedCandidates = position.candidates
+            .map((candidate: any, index: number) => ({
               id: candidate.id,
               name: candidate.full_name,
               votes: candidate.vote_count,
-              percentage: totalPositionVotes > 0 ? Math.round((candidate.vote_count / totalPositionVotes) * 100) : 0,
-              isWinner: candidate.vote_count === maxVotes && totalPositionVotes > 0,
-              isLeading: candidate.vote_count === maxVotes,
+              percentage:
+                position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0) > 0
+                  ? Math.round(
+                      (candidate.vote_count /
+                        position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)) *
+                        100,
+                    )
+                  : 0,
+              isWinner: false,
+              position: 0,
             }))
             .sort((a: any, b: any) => b.votes - a.votes)
+            .map((candidate: any, index: number) => ({
+              ...candidate,
+              position: index + 1,
+              isWinner: index === 0 && candidate.votes > 0,
+            }))
 
           return {
-            positionId: position.id,
-            positionTitle: position.title,
+            postId: position.id,
+            postTitle: position.title,
             category: position.election_categories?.name || "General",
-            candidates,
-            totalVotes: totalPositionVotes,
-            status: "active" as const,
+            candidates: sortedCandidates,
+            totalVotes: position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0),
+            status: "ongoing" as const,
           }
         }) || []
 
       setResults(electionResults)
+      setTotalStats({
+        totalVoters: totalVoters || 0,
+        totalVotes: totalVotes || 0,
+        turnoutPercentage: totalVoters ? Math.round(((totalVotes || 0) / totalVoters) * 100) : 0,
+        completedPositions: electionResults.filter((r) => r.totalVotes > 0).length,
+      })
+      setLastUpdated(new Date())
     } catch (error) {
       console.error("Error loading results:", error)
     } finally {
@@ -154,12 +177,25 @@ export default function ChairpersonResultsPage() {
     }
   }
 
+  const getPositionBadge = (position: number) => {
+    switch (position) {
+      case 1:
+        return "bg-yellow-500 text-white"
+      case 2:
+        return "bg-gray-400 text-white"
+      case 3:
+        return "bg-amber-600 text-white"
+      default:
+        return "bg-gray-300 text-gray-700"
+    }
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading election results...</p>
+          <p className="text-lg font-medium">Loading official results...</p>
         </div>
       </div>
     )
@@ -180,7 +216,7 @@ export default function ChairpersonResultsPage() {
             </div>
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-gray-900">Official Election Results</h2>
-              <p className="text-gray-600">Electoral Commission - Detailed Results Analysis</p>
+              <p className="text-gray-600">Electoral Commission - Certified Results</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -188,10 +224,14 @@ export default function ChairpersonResultsPage() {
               <RefreshCw className="w-4 h-4" />
               <span>Refresh</span>
             </Button>
-            <Badge variant="outline" className="px-3 py-1">
-              <Eye className="w-4 h-4 mr-1" />
-              Live Results
-            </Badge>
+            <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </Button>
+            <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+              <Printer className="w-4 h-4" />
+              <span>Print</span>
+            </Button>
             <Button onClick={handleLogout} variant="outline" className="text-red-600 hover:text-red-700 bg-transparent">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
@@ -199,65 +239,104 @@ export default function ChairpersonResultsPage() {
           </div>
         </motion.div>
 
-        {/* Summary Statistics */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Election Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">{totalStats.totalVoters}</div>
-                  <div className="text-sm text-muted-foreground">Registered Voters</div>
+        {/* Summary Stats */}
+        <div className="grid gap-6 md:grid-cols-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Registered Voters</p>
+                    <p className="text-3xl font-bold">{totalStats.totalVoters.toLocaleString()}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-blue-200" />
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">{totalStats.totalVotes}</div>
-                  <div className="text-sm text-muted-foreground">Total Votes Cast</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Voter Turnout</p>
+                    <p className="text-3xl font-bold">{totalStats.turnoutPercentage}%</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-green-200" />
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-600">{totalStats.participationRate}%</div>
-                  <div className="text-sm text-muted-foreground">Participation Rate</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Total Votes Cast</p>
+                    <p className="text-3xl font-bold">{totalStats.totalVotes.toLocaleString()}</p>
+                  </div>
+                  <Vote className="w-8 h-8 text-purple-200" />
                 </div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Overall Participation</span>
-                  <span className="text-sm text-muted-foreground">{totalStats.participationRate}%</span>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Active Positions</p>
+                    <p className="text-3xl font-bold">{totalStats.completedPositions}</p>
+                  </div>
+                  <BarChart3 className="w-8 h-8 text-orange-200" />
                 </div>
-                <Progress value={totalStats.participationRate} className="h-2" />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Last Updated */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <Calendar className="w-4 h-4" />
+                  <span className="font-medium">Last Updated: {lastUpdated.toLocaleString()}</span>
+                </div>
+                <Badge variant="outline" className="border-blue-300 text-blue-700">
+                  Live Results
+                </Badge>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Detailed Results */}
+        {/* Results by Position */}
         <div className="space-y-6">
           {results.map((result, index) => (
             <motion.div
-              key={result.positionId}
+              key={result.postId}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + index * 0.1 }}
+              transition={{ delay: 0.6 + index * 0.1 }}
             >
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden shadow-lg">
                 <CardHeader className={`bg-gradient-to-r ${getCategoryColor(result.category)} text-white`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {getCategoryIcon(result.category)}
                       <div>
-                        <CardTitle className="text-xl">{result.positionTitle}</CardTitle>
-                        <Badge variant="secondary" className="bg-white/20 text-white border-white/30 mt-1">
-                          {result.category}
-                        </Badge>
+                        <CardTitle className="text-2xl font-bold">{result.postTitle}</CardTitle>
+                        <p className="text-white/90">{result.category}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{result.totalVotes}</div>
-                      <div className="text-sm opacity-90">total votes</div>
+                      <div className="text-3xl font-bold">{result.totalVotes}</div>
+                      <div className="text-sm text-white/90">Total Votes</div>
                     </div>
                   </div>
                 </CardHeader>
@@ -270,73 +349,56 @@ export default function ChairpersonResultsPage() {
                         className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
                           candidate.isWinner
                             ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-400 shadow-md"
-                            : candidate.isLeading
-                              ? "bg-blue-50 border-blue-300"
-                              : "bg-gray-50 border-gray-200"
+                            : "bg-gray-50 border-gray-200"
                         }`}
                       >
                         <div className="flex items-center gap-4">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                              candidate.isWinner
-                                ? "bg-yellow-500 text-white"
-                                : candidateIndex === 0
-                                  ? "bg-blue-500 text-white"
-                                  : candidateIndex === 1
-                                    ? "bg-gray-400 text-white"
-                                    : "bg-gray-300 text-gray-700"
-                            }`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${getPositionBadge(candidate.position)}`}
                           >
-                            {candidateIndex + 1}
+                            {candidate.position}
                           </div>
                           <div>
                             <div className="font-bold text-lg text-gray-900">{candidate.name}</div>
                             <div className="text-sm text-gray-600">{candidate.votes} votes received</div>
                           </div>
+                          {candidate.isWinner && (
+                            <Badge className="bg-yellow-500 text-white ml-2">
+                              <Trophy className="w-3 h-3 mr-1" />
+                              WINNER
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-900">{candidate.percentage}%</div>
-                          {candidate.isWinner && (
-                            <div className="text-sm text-yellow-600 font-bold flex items-center gap-1">
-                              <Trophy className="w-4 h-4" />
-                              Winner
-                            </div>
-                          )}
-                          {candidate.isLeading && !candidate.isWinner && (
-                            <div className="text-sm text-blue-600 font-medium flex items-center gap-1">
-                              <TrendingUp className="w-4 h-4" />
-                              Leading
-                            </div>
-                          )}
+                          <div className="w-32">
+                            <Progress value={candidate.percentage} className="h-2" />
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-
-                  {result.totalVotes === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>No votes cast for this position yet</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </motion.div>
           ))}
         </div>
 
-        {results.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-center py-12"
-          >
-            <Vote className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Election Results Available</h3>
-            <p className="text-gray-500">Election results will appear here once voting begins.</p>
-          </motion.div>
-        )}
+        {/* Footer */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
+          <Card className="bg-gray-800 text-white">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Shield className="w-5 h-5" />
+                <span className="font-bold">Electoral Commission Certification</span>
+              </div>
+              <p className="text-gray-300 text-sm">
+                These results are officially certified by the Electoral Commission and represent the true outcome of the
+                democratic election process.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   )
