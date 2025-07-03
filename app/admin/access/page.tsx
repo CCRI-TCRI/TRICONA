@@ -1,30 +1,12 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { RoleAccessCard } from "@/components/role-access-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Shield, GraduationCap, Users, Eye, Lock, CheckCircle } from "lucide-react"
+import { AdminRoleCards } from "@/components/role-access-card"
 
 export default function AdminAccessPage() {
-  const chairpersonFeatures = [
-    "Live election results monitoring",
-    "Real-time voting statistics",
-    "Candidate performance tracking",
-    "Voter turnout analytics",
-    "Election status overview",
-    "Recent voting activity feed",
-  ]
-
-  const headteacherFeatures = [
-    "Student leadership results",
-    "School participation metrics",
-    "Democratic process oversight",
-    "Student engagement analytics",
-    "Leadership position tracking",
-    "School-wide voting statistics",
-  ]
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -56,25 +38,9 @@ export default function AdminAccessPage() {
         </motion.div>
 
         {/* Access Cards */}
-        <div className="grid gap-8 lg:grid-cols-2">
-          <RoleAccessCard
-            role="chairperson"
-            title="Electoral Commission"
-            description="Chairperson access to election monitoring and oversight dashboard"
-            features={chairpersonFeatures}
-            loginPath="/admin/chairperson/login"
-            delay={0.2}
-          />
-
-          <RoleAccessCard
-            role="headteacher"
-            title="School Administration"
-            description="Headteacher access to student leadership election oversight"
-            features={headteacherFeatures}
-            loginPath="/admin/headteacher/login"
-            delay={0.4}
-          />
-        </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <AdminRoleCards />
+        </motion.div>
 
         {/* System Information */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
@@ -86,7 +52,28 @@ export default function AdminAccessPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-3">
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-red-700 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Admin Dashboard Access
+                  </h4>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>
+                      <strong>Role:</strong> System administrator
+                    </p>
+                    <p>
+                      <strong>Access Level:</strong> Full system management
+                    </p>
+                    <p>
+                      <strong>Features:</strong> Complete election control
+                    </p>
+                    <p>
+                      <strong>Authentication:</strong> Secure admin login
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   <h4 className="font-semibold text-blue-700 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
@@ -136,8 +123,9 @@ export default function AdminAccessPage() {
                   <div className="text-sm">
                     <p className="font-semibold text-yellow-800">Security Notice</p>
                     <p className="text-yellow-700">
-                      Both access portals provide read-only access to election data. No administrative actions can be
-                      performed through these interfaces. All access is logged and monitored.
+                      All access portals are secured with authentication. Electoral Commission and Headteacher portals
+                      provide read-only access to election data. No administrative actions can be performed through
+                      these interfaces. All access is logged and monitored.
                     </p>
                   </div>
                 </div>
