@@ -3,13 +3,14 @@
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Shield, GraduationCap, Users, Eye, Lock, CheckCircle } from "lucide-react"
-import { AdminRoleCards } from "@/components/role-access-card"
+import { Button } from "@/components/ui/button"
+import { Shield, Users, Eye, Lock, CheckCircle } from "lucide-react"
+import Link from "next/link"
 
 export default function AdminAccessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-4">
           <div className="flex items-center justify-center gap-3">
@@ -19,7 +20,7 @@ export default function AdminAccessPage() {
             <h1 className="text-4xl font-bold text-gray-900">Election System Access</h1>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Secure access portals for election oversight and monitoring
+            Secure administrative access to the election management system
           </p>
           <div className="flex items-center justify-center gap-2">
             <Badge variant="outline" className="px-3 py-1">
@@ -28,31 +29,46 @@ export default function AdminAccessPage() {
             </Badge>
             <Badge variant="outline" className="px-3 py-1">
               <Eye className="w-3 h-3 mr-1" />
-              Read-Only Access
+              Full Access
             </Badge>
             <Badge variant="outline" className="px-3 py-1">
               <CheckCircle className="w-3 h-3 mr-1" />
-              Real-Time Updates
+              Real-Time Control
             </Badge>
           </div>
         </motion.div>
 
-        {/* Access Cards */}
+        {/* Admin Access Card */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <AdminRoleCards />
+          <div className="max-w-md mx-auto">
+            <Card className="hover:shadow-lg transition-shadow border-l-4 border-l-red-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Admin Dashboard
+                </CardTitle>
+                <p className="text-gray-600">Full system access and management capabilities</p>
+              </CardHeader>
+              <CardContent>
+                <Link href="/admin/login">
+                  <Button className="w-full">Access Dashboard</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </motion.div>
 
         {/* System Information */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Access Information
+                Administrator Access Information
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-3">
+              <div className="space-y-4">
                 <div className="space-y-3">
                   <h4 className="font-semibold text-red-700 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
@@ -63,55 +79,14 @@ export default function AdminAccessPage() {
                       <strong>Role:</strong> System administrator
                     </p>
                     <p>
-                      <strong>Access Level:</strong> Full system management
+                      <strong>Access Level:</strong> Full system management and control
                     </p>
                     <p>
-                      <strong>Features:</strong> Complete election control
+                      <strong>Features:</strong> Complete election administration, voter management, candidate
+                      management, results control
                     </p>
                     <p>
-                      <strong>Authentication:</strong> Secure admin login
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-blue-700 flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Electoral Commission Access
-                  </h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>
-                      <strong>Role:</strong> Election oversight and monitoring
-                    </p>
-                    <p>
-                      <strong>Access Level:</strong> Read-only results dashboard
-                    </p>
-                    <p>
-                      <strong>Features:</strong> Real-time election data, voting analytics
-                    </p>
-                    <p>
-                      <strong>Authentication:</strong> Secure login required
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-green-700 flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4" />
-                    School Administration Access
-                  </h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>
-                      <strong>Role:</strong> Student leadership oversight
-                    </p>
-                    <p>
-                      <strong>Access Level:</strong> Read-only school dashboard
-                    </p>
-                    <p>
-                      <strong>Features:</strong> Student participation, leadership results
-                    </p>
-                    <p>
-                      <strong>Authentication:</strong> Secure login required
+                      <strong>Authentication:</strong> Secure admin credentials required
                     </p>
                   </div>
                 </div>
@@ -123,9 +98,8 @@ export default function AdminAccessPage() {
                   <div className="text-sm">
                     <p className="font-semibold text-yellow-800">Security Notice</p>
                     <p className="text-yellow-700">
-                      All access portals are secured with authentication. Electoral Commission and Headteacher portals
-                      provide read-only access to election data. No administrative actions can be performed through
-                      these interfaces. All access is logged and monitored.
+                      This portal provides full administrative access to the election system. Only authorized
+                      administrators should access this area. All access attempts are logged and monitored.
                     </p>
                   </div>
                 </div>
