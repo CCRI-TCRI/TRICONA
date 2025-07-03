@@ -1,63 +1,50 @@
 "use client"
 
-import type React from "react"
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Shield, GraduationCap, Users } from "lucide-react"
+import { motion } from "framer-motion"
 import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import { ArrowRight } from "lucide-react"
 
-interface RoleAccessCardProps {
+export interface RoleAccessCardProps {
+  role: "chairperson" | "headteacher"
   title: string
   description: string
-  icon: React.ReactNode
-  href: string
-  color: string
+  features: string[]
+  loginPath: string
+  delay?: number
 }
 
-export function RoleAccessCard({ title, description, icon, href, color }: RoleAccessCardProps) {
+export function RoleAccessCard({ title, description, features, loginPath, delay = 0 }: RoleAccessCardProps) {
   return (
-    <Card className={`hover:shadow-lg transition-shadow border-l-4 ${color}`}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {icon}
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Link href={href}>
-          <Button className="w-full">Access Dashboard</Button>
-        </Link>
-      </CardContent>
-    </Card>
-  )
-}
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+      <Card className="h-full flex flex-col">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
 
-export function AdminRoleCards() {
-  return (
-    <div className="grid gap-6 md:grid-cols-3">
-      <RoleAccessCard
-        title="Admin Dashboard"
-        description="Full system access and management capabilities"
-        icon={<Shield className="w-5 h-5" />}
-        href="/admin/login"
-        color="border-l-red-500"
-      />
-      <RoleAccessCard
-        title="Electoral Commission"
-        description="Results monitoring and oversight access"
-        icon={<Users className="w-5 h-5" />}
-        href="/chairperson/login"
-        color="border-l-blue-500"
-      />
-      <RoleAccessCard
-        title="Headteacher"
-        description="School results overview and reporting"
-        icon={<GraduationCap className="w-5 h-5" />}
-        href="/headteacher/login"
-        color="border-l-green-500"
-      />
-    </div>
+        <CardContent className="space-y-2 flex-1">
+          {features.map((feature) => (
+            <div key={feature} className="flex items-center gap-2 text-sm">
+              <Badge variant="outline" className="px-1.5 py-0.5">
+                ✓
+              </Badge>
+              <span className="text-gray-700">{feature}</span>
+            </div>
+          ))}
+        </CardContent>
+
+        <CardFooter>
+          <Link
+            href={loginPath}
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:underline"
+          >
+            Go to login
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </CardFooter>
+      </Card>
+    </motion.div>
   )
 }
