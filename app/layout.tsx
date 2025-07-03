@@ -5,6 +5,7 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Lubiri Secondary School - Election System",
   description: "Digital voting platform for Lubiri Secondary School prefectorial elections",
+  generator: "v0.dev",
   icons: {
     icon: "/favicon.ico",
   },

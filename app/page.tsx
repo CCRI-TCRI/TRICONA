@@ -7,13 +7,14 @@ import { VotingBallot } from "@/components/voting-ballot"
 import { TutorialPopup } from "@/components/tutorial-popup"
 import { HolidayPopup } from "@/components/holiday-popup"
 import { SeasonalBackground } from "@/components/seasonal-background"
-import { AdminAccessButton } from "@/components/admin-access-button"
+import { AdminRoleLogin } from "@/components/admin-role-login"
 import { SeasonalIntro } from "@/components/seasonal-intro"
 import { motion } from "framer-motion"
 import { CheckCircle, Trophy, Sparkles, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
 import { getCurrentSeason, getSeasonalContainerClass } from "@/lib/seasons"
+import { FourthOfJulyPopup } from "@/components/fourth-of-july-popup"
 
 type AppState = "auth" | "tutorial" | "voting" | "complete"
 
@@ -106,11 +107,12 @@ export default function VotingApp() {
         <SeasonalIntro />
         <SeasonalBackground />
         <BiometricAuth onAuthSuccess={handleAuthSuccess} />
-        <AdminAccessButton />
+        <AdminRoleLogin />
 
         {showTutorial && <TutorialPopup onClose={handleTutorialClose} onComplete={handleTutorialPopupComplete} />}
 
         {showHolidayGreeting && <HolidayPopup onClose={handleHolidayClose} />}
+        <FourthOfJulyPopup />
       </div>
     )
   }
@@ -121,7 +123,7 @@ export default function VotingApp() {
         <SeasonalIntro />
         <SeasonalBackground />
         <WelcomeTutorial onComplete={handleTutorialComplete} studentName={studentName || studentId} />
-        <AdminAccessButton />
+        <AdminRoleLogin />
       </div>
     )
   }
@@ -132,7 +134,7 @@ export default function VotingApp() {
         <SeasonalIntro />
         <SeasonalBackground />
         <VotingBallot studentId={studentId} onVoteComplete={handleVoteComplete} />
-        <AdminAccessButton />
+        <AdminRoleLogin />
       </div>
     )
   }
@@ -142,7 +144,7 @@ export default function VotingApp() {
       <div className={`min-h-screen relative ${getSeasonalContainerClass(season.theme)}`}>
         <SeasonalIntro />
         <SeasonalBackground />
-        <AdminAccessButton />
+        <AdminRoleLogin />
         <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}

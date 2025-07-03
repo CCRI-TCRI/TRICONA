@@ -1,63 +1,104 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { ChairpersonSidebar } from "@/components/chairperson-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 
-export default function ChairpersonLayout({
-  children,
-}: {
+interface ChairpersonLayoutProps {
   children: React.ReactNode
-}) {
+}
+
+export default function ChairpersonLayout({ children }: ChairpersonLayoutProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    const checkAuth = () => {
-      const authStatus = sessionStorage.getItem("chairperson-auth")
-      if (authStatus === "authenticated") {
-        setIsAuthenticated(true)
-      } else {
-        router.push("/chairperson/login")
-      }
-      setIsLoading(false)
-    }
-
+    // Check authentication on component mount
     checkAuth()
 
-    // Listen for auth changes across tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "chairperson-auth" && e.newValue !== "authenticated") {
-        router.push("/chairperson/login")
-      }
+    // Set up interval to periodically check auth status
+    const interval = setInterval(checkAuth, 60000) // Check every minute
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const checkAuth = () => {
+    // Skip auth check for login page
+    if (pathname === "/chairperson/login") {
+      setIsLoading(false)
+      return
     }
 
-    window.addEventListener("storage", handleStorageChange)
-    return () => window.removeEventListener("storage", handleStorageChange)
-  }, [router])
+    try {
+      const authData = localStorage.getItem("chairpersonAuth")
 
+      if (!authData) {
+        redirectToLogin()
+        return
+      }
+
+      const auth = JSON.parse(authData)
+
+      // Check if session is expired
+      if (!auth.isAuthenticated || auth.expiresAt < Date.now()) {
+        redirectToLogin()
+        return
+      }
+
+      setIsAuthenticated(true)
+      setIsLoading(false)
+    } catch (error) {
+      console.error("Auth check error:", error)
+      redirectToLogin()
+    }
+  }
+
+  const redirectToLogin = () => {
+    setIsAuthenticated(false)
+    setIsLoading(false)
+
+    // Clear auth data
+    localStorage.removeItem("chairpersonAuth")
+
+    // Redirect to login page if not already there
+    if (pathname !== "/chairperson/login") {
+      router.push("/chairperson/login")
+    }
+  }
+
+  // Show loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-blue-600">Loading...</p>
+        </div>
       </div>
     )
   }
 
-  if (!isAuthenticated) {
-    return null
+  // For login page, don't show sidebar
+  if (pathname === "/chairperson/login") {
+    return <>{children}</>
   }
 
-  return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+  // For authenticated pages, show sidebar layout
+  if (isAuthenticated) {
+    return (
+      <SidebarProvider>
         <ChairpersonSidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
-      </div>
-    </SidebarProvider>
-  )
+        <SidebarInset>
+          <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">{children}</div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+
+  // Fallback - should not reach here
+  return null
 }
