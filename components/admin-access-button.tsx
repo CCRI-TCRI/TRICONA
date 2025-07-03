@@ -84,13 +84,7 @@ export function AdminAccessButton() {
               {isLoading ? "Logging in..." : "Access Admin Panel"}
             </Button>
           </form>
-          <div className="text-sm text-muted-foreground text-center bg-gray-50 p-2 rounded">
-            <strong>Demo Credentials:</strong>
-            <br />
-            Username: admin
-            <br />
-            Password: admin123
-          </div>
+         
         </DialogContent>
       </Dialog>
     </motion.div>
