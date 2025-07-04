@@ -31,7 +31,7 @@ export function AdminRoleLogin() {
             <DialogTitle className="text-center">System Access</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Link href="/admin/dashboard" onClick={() => setIsOpen(false)}>
+            <Link href="/chairperson/dashboard" onClick={() => setIsOpen(false)}>
               <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
                 <Shield className="w-5 h-5 text-blue-600" />
                 <div className="text-left">
