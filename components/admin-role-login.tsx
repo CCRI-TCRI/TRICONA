@@ -30,17 +30,7 @@ export function AdminRoleLogin() {
           <DialogHeader>
             <DialogTitle className="text-center">System Access</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Link href="/admin/dashboard" onClick={() => setIsOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
-                <Shield className="w-5 h-5 text-blue-600" />
-                <div className="text-left">
-                  <div className="font-medium">Admin Panel</div>
-                  <div className="text-xs text-gray-500">Full system management</div>
-                </div>
-              </Button>
-            </Link>
-
+        
             <Link href="/chairperson/dashboard" onClick={() => setIsOpen(false)}>
               <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
                 <Crown className="w-5 h-5 text-purple-600" />
