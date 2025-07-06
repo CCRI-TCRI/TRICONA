@@ -178,7 +178,7 @@ export default function VotingApp() {
               transition={{ delay: 0.7 }}
               className="text-xl md:text-2xl mb-8 opacity-90"
             >
-              Thank you for participating in the 2024 Prefectorial Elections
+              Thank you for participating in the Trial Elections
             </motion.p>
 
             <motion.div
@@ -238,7 +238,7 @@ export default function VotingApp() {
                 }}
                 className="mt-8 text-sm opacity-60"
               >
-                You may now close this window or return to login
+                System Built By Sseruwagi Sinclaire Sebastian
               </motion.div>
             </motion.div>
           </motion.div>
