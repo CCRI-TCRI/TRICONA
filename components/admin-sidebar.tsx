@@ -140,7 +140,7 @@ export function AdminSidebar() {
             <SidebarMenuButton asChild>
               <Link href="/">
                 <LogOut className="w-4 h-4" />
-                <span>Back to Voting</span>
+                <span>LogOut</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
