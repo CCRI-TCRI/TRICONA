@@ -139,7 +139,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
               <CardTitle className="text-2xl font-bold text-gray-800">Lubiri Secondary School</CardTitle>
               <p className="text-gray-600 mt-2">2025 Student OP Polls Elections</p>
               <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
-                Secure Voting System
+               Lubiri Royal Ballot by Sinclaire
               </Badge>
             </div>
           </CardHeader>
