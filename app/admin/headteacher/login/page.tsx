@@ -34,7 +34,7 @@ export default function HeadteacherLogin() {
       sessionStorage.setItem("user_role", "headteacher")
       router.push("/admin/headteacher/dashboard")
     } else {
-      setError("Invalid credentials. Use headteacher/head2024 for demo.")
+      setError("Invalid credentials. Contact Sinclaire Sebastian For Help")
     }
 
     setIsLoading(false)
