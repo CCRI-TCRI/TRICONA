@@ -137,7 +137,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
             </motion.div>
             <div>
               <CardTitle className="text-2xl font-bold text-gray-800">Lubiri Secondary School</CardTitle>
-              <p className="text-gray-600 mt-2">2024 Prefectorial Elections</p>
+              <p className="text-gray-600 mt-2">2025 Student OP Polls Elections</p>
               <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
                 Secure Voting System
               </Badge>
@@ -298,7 +298,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
                   <div className="text-center text-xs text-gray-500 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                     <p className="font-semibold mb-1 text-yellow-700">Face Recognition</p>
-                    <p className="text-yellow-600">This feature is currently under development.</p>
+                    <p className="text-yellow-600">This feature is currently under development by the production team preview will be available Early September.</p>
                     <p className="text-yellow-600">Please use manual login for now.</p>
                   </div>
                 </motion.div>
