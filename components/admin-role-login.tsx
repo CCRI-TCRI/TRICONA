@@ -28,41 +28,43 @@ export function AdminRoleLogin() {
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center">System Access</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-center justify-center">
+              <Lock className="w-5 h-5 text-primary" />
+              Admin Access
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Link href="/headteacher/dashboard" onClick={() => setIsOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
-                <Shield className="w-5 h-5 text-blue-600" />
-                <div className="text-left">
-                  <div className="font-medium">Admin Panel</div>
-                  <div className="text-xs text-gray-500">Full system management</div>
-                </div>
-              </Button>
-            </Link>
-
-            <Link href="/chairperson/dashboard" onClick={() => setIsOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
-                <Crown className="w-5 h-5 text-purple-600" />
-                <div className="text-left">
-                  <div className="font-medium">Electoral Commission</div>
-                  <div className="text-xs text-gray-500">Results monitoring</div>
-                </div>
-              </Button>
-            </Link>
-
-            <Link href="/headteacher/dashboard" onClick={() => setIsOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-3 h-12 bg-transparent">
-                <GraduationCap className="w-5 h-5 text-green-600" />
-                <div className="text-left">
-                  <div className="font-medium">Headteacher</div>
-                  <div className="text-xs text-gray-500">School oversight</div>
-                </div>
-              </Button>
-            </Link>
-          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={credentials.username}
+                onChange={(e) => setCredentials((prev) => ({ ...prev, username: e.target.value }))}
+                placeholder="Enter admin username"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={credentials.password}
+                onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
+                placeholder="Enter admin password"
+                required
+              />
+            </div>
+            {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Logging in..." : "Access Admin Panel"}
+            </Button>
+          </form>
+          
         </DialogContent>
       </Dialog>
     </motion.div>
   )
 }
+export default AdminAccessButton
