@@ -27,7 +27,7 @@ const tutorialSteps = [
   {
     id: 1,
     title: "Welcome to E-Voting",
-    description: "You're about to participate in the 2024 Prefectorial Elections at Lubiri Secondary School.",
+    description: "You're about to participate in the 2025 S3 H Test Elections at Lubiri Secondary School by Sinclaire Sebastian.",
     icon: Vote,
     color: "from-blue-500 to-purple-500",
     content: "This digital voting system ensures your vote is secure, private, and counted accurately.",
@@ -51,7 +51,7 @@ const tutorialSteps = [
   {
     id: 4,
     title: "Time Limit",
-    description: "You have 2 minutes to complete your voting.",
+    description: "You have 5 minutes to complete your voting.",
     icon: Clock,
     color: "from-orange-500 to-red-500",
     content: "A timer will show your remaining time. If time expires, you'll be automatically logged out.",
