@@ -53,7 +53,7 @@ export function AdminAccessButton() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-center justify-center">
               <Lock className="w-5 h-5 text-primary" />
-              Admin Access
+              Hey, This is not for you. Get Back
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleLogin} className="space-y-4">
