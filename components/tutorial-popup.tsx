@@ -20,7 +20,7 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
-    title: "Welcome to Lubiri E-Voting",
+    title: "Welcome to Lubiri Royal Ballot E-Voting Platform",
     description: "This secure digital voting system ensures your voice is heard in school elections.",
     icon: <Vote className="w-8 h-8 text-blue-500" />,
     tips: [
@@ -49,6 +49,7 @@ const tutorialSteps: TutorialStep[] = [
       "Look directly at the camera for best results",
       "Ensure good lighting for face detection",
       "This prevents unauthorized voting",
+      "This system is still under development",
     ],
   },
   {
@@ -58,7 +59,7 @@ const tutorialSteps: TutorialStep[] = [
     icon: <CheckCircle className="w-8 h-8 text-orange-500" />,
     tips: [
       "Review all selections before submitting",
-      "You have 2 minutes to complete voting",
+      "You have 5 minutes to complete voting",
       "Once submitted, votes cannot be changed",
     ],
   },
