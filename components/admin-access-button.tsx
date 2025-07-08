@@ -64,7 +64,7 @@ export function AdminAccessButton() {
                 type="text"
                 value={credentials.username}
                 onChange={(e) => setCredentials((prev) => ({ ...prev, username: e.target.value }))}
-                placeholder="Enter admin username"
+                placeholder="For thy who is Loved Endlessly shall know access"
                 required
               />
             </div>
@@ -75,7 +75,7 @@ export function AdminAccessButton() {
                 type="password"
                 value={credentials.password}
                 onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder="Enter admin password"
+                placeholder="She was loved till the end of time"
                 required
               />
             </div>
