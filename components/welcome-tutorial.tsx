@@ -26,8 +26,8 @@ interface WelcomeTutorialProps {
 const tutorialSteps = [
   {
     id: 1,
-    title: "Welcome to E-Voting",
-    description: "You're about to participate in the 2025 S3 H Test Elections at Lubiri Secondary School by Sinclaire Sebastian.",
+    title: "Welcome to TRICONA E-Voting",
+    description: "You're about to participate in the 2025 Test Elections at Trinity Collage School by Sinclaire Sebastian.",
     icon: Vote,
     color: "from-blue-500 to-purple-500",
     content: "This digital voting system ensures your vote is secure, private, and counted accurately.",
