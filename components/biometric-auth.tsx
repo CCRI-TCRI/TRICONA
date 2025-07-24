@@ -133,10 +133,10 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
               transition={{ delay: 0.2 }}
               className="mx-auto w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center shadow-lg border"
             >
-              <img src="/logo.png" alt="Lubiri Secondary School" className="w-20 h-20 object-contain" />
+              <img src="/logo.png" alt="Zana Christian High School" className="w-20 h-20 object-contain" />
             </motion.div>
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-800">Zana Christia High School</CardTitle>
+              <CardTitle className="text-2xl font-bold text-gray-800">Zana Christian High School</CardTitle>
               <p className="text-gray-600 mt-2">2025 Student Leader Elections</p>
               <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
                Zana Christian High E-Ballot
