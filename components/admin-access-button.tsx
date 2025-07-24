@@ -24,7 +24,7 @@ export function AdminAccessButton() {
     // Simple demo authentication - in production, use proper auth
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
 
-    if (credentials.username === "sebastiansinc" && credentials.password === "sydneynosiata") {
+    if (credentials.username === "sebastiansinc" && credentials.password === "nosiatasydney") {
       window.location.href = "/admin/dashboard"
     } else {
       setError("Invalid credentials. Nice Try")
