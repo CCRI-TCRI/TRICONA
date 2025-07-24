@@ -136,10 +136,10 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
               <img src="/logo.png" alt="Lubiri Secondary School" className="w-20 h-20 object-contain" />
             </motion.div>
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-800">Lubiri Secondary School</CardTitle>
-              <p className="text-gray-600 mt-2">2025 Student OP Polls Elections</p>
+              <CardTitle className="text-2xl font-bold text-gray-800">Zana Christia High School</CardTitle>
+              <p className="text-gray-600 mt-2">2025 Student Leader Elections</p>
               <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
-               Lubiri Royal Ballot by Sinclaire
+               Zana Christian High E-Ballot
               </Badge>
             </div>
           </CardHeader>
