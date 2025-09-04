@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { motion, AnimatePresence } from "framer-motion"
-import { KeyRound, CheckCircle, AlertCircle, ArrowRight } from "lucide-react"
+import { KeyRound, CheckCircle, AlertCircle, ArrowRight, Settings } from "lucide-react"
 import { FaceRecognition } from "./face-recognition"
 import { supabase } from "@/lib/supabase"
 
@@ -82,6 +82,18 @@ export function VoterAuth({ onAuthSuccess }: VoterAuthProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-white/20 text-white hover:bg-white/10 backdrop-blur-sm bg-transparent"
+          onClick={() => (window.location.href = "/admin/login")}
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          Admin Panel
+        </Button>
+      </div>
+
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
         <div className="text-center mb-8">
           <motion.div
