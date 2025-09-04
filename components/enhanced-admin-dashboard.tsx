@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { AdminSidebar } from "@/components/admin-sidebar"
+import { LiveResultsModal } from "@/components/live-results-modal"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +14,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Users,
   Vote,
@@ -28,6 +29,9 @@ import {
   CheckCircle,
   Clock,
   TrendingUp,
+  Key,
+  Copy,
+  RefreshCw,
 } from "lucide-react"
 
 interface AdminUser {
@@ -43,6 +47,8 @@ interface EnhancedAdminDashboardProps {
 
 export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProps) {
   const router = useRouter()
+  const [currentPage, setCurrentPage] = useState("dashboard")
+  const [showLiveResults, setShowLiveResults] = useState(false)
   const [stats, setStats] = useState({
     totalVoters: 0,
     votedCount: 0,
@@ -53,6 +59,7 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
   const [candidates, setCandidates] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
   const [voters, setVoters] = useState<any[]>([])
+  const [votingCodes, setVotingCodes] = useState<any[]>([])
   const [electionSettings, setElectionSettings] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,6 +77,12 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
     category: "",
     description: "",
   })
+  const [newVoter, setNewVoter] = useState({
+    full_name: "",
+    student_id: "",
+    class_level: "",
+    email: "",
+  })
 
   useEffect(() => {
     loadDashboardData()
@@ -80,20 +93,23 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
     setIsLoading(true)
 
     try {
-      const [votersResult, candidatesResult, positionsResult, settingsResult] = await Promise.all([
+      const [votersResult, candidatesResult, positionsResult, settingsResult, codesResult] = await Promise.all([
         supabase.from("voters").select("*"),
         supabase.from("election_candidates").select("*"),
         supabase.from("election_positions").select("*"),
         supabase.from("election_settings").select("*").limit(1).single(),
+        supabase.from("voting_codes").select("*"),
       ])
 
       const votersList = votersResult.data || []
       const candidatesList = candidatesResult.data || []
       const positionsList = positionsResult.data || []
+      const codesList = codesResult.data || []
 
       setVoters(votersList)
       setCandidates(candidatesList)
       setPositions(positionsList)
+      setVotingCodes(codesList)
       setElectionSettings(settingsResult.data)
 
       setStats({
@@ -107,6 +123,14 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
       setError(error.message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handlePageChange = (page: string) => {
+    if (page === "live-results") {
+      setShowLiveResults(true)
+    } else {
+      setCurrentPage(page)
     }
   }
 
@@ -183,13 +207,61 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
     }
   }
 
+  const generateVotingCodes = async (count: number) => {
+    const supabase = createClient()
+    const codes = []
+
+    for (let i = 0; i < count; i++) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+      codes.push({
+        code,
+        is_used: false,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    try {
+      const { error } = await supabase.from("voting_codes").insert(codes)
+      if (error) throw error
+      loadDashboardData()
+    } catch (error: any) {
+      setError(error.message)
+    }
+  }
+
+  const addVoter = async () => {
+    const supabase = createClient()
+
+    try {
+      const { error } = await supabase.from("voters").insert([
+        {
+          ...newVoter,
+          has_voted: false,
+          is_verified: false,
+        },
+      ])
+
+      if (error) throw error
+
+      setNewVoter({
+        full_name: "",
+        student_id: "",
+        class_level: "",
+        email: "",
+      })
+      loadDashboardData()
+    } catch (error: any) {
+      setError(error.message)
+    }
+  }
+
   const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
     <Card className="relative overflow-hidden">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-3xl font-bold">{value}</p>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-3xl font-bold text-foreground">{value}</p>
             {trend && (
               <div className="flex items-center mt-1">
                 <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
@@ -205,193 +277,126 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
     </Card>
   )
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Election Dashboard</h1>
-              <p className="text-gray-600">Lubiri Secondary School E-Voting System</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{adminUser.full_name}</p>
-                <p className="text-xs text-gray-500">{adminUser.role}</p>
-              </div>
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Election Status */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-3 h-3 rounded-full ${electionSettings?.is_active ? "bg-green-500" : "bg-red-500"}`}
-                ></div>
-                <div>
-                  <h3 className="font-semibold">Election Status</h3>
-                  <p className="text-sm text-gray-600">
-                    {electionSettings?.is_active ? "Active - Voting in progress" : "Inactive - Voting closed"}
-                  </p>
-                </div>
-              </div>
-              <Button onClick={toggleElectionStatus} variant={electionSettings?.is_active ? "destructive" : "default"}>
-                {electionSettings?.is_active ? "Stop Election" : "Start Election"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Statistics */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-          <StatCard
-            title="Total Voters"
-            value={stats.totalVoters}
-            icon={Users}
-            color="bg-blue-500"
-            trend="+12% from last election"
-          />
-          <StatCard
-            title="Votes Cast"
-            value={stats.votedCount}
-            icon={Vote}
-            color="bg-green-500"
-            trend={`${Math.round((stats.votedCount / stats.totalVoters) * 100)}% turnout`}
-          />
-          <StatCard title="Candidates" value={stats.totalCandidates} icon={Trophy} color="bg-purple-500" />
-          <StatCard title="Positions" value={stats.totalPositions} icon={BarChart3} color="bg-orange-500" />
-          <StatCard title="Active Elections" value={stats.activeElections} icon={Settings} color="bg-indigo-500" />
-        </div>
-
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="candidates">Candidates</TabsTrigger>
-            <TabsTrigger value="positions">Positions</TabsTrigger>
-            <TabsTrigger value="voters">Voters</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            {/* Turnout Progress */}
+  const renderPageContent = () => {
+    switch (currentPage) {
+      case "dashboard":
+        return (
+          <div className="space-y-6">
+            {/* Election Status */}
             <Card>
-              <CardHeader>
-                <CardTitle>Voter Turnout Progress</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Overall Progress</span>
-                    <span className="text-sm text-gray-600">
-                      {stats.votedCount} / {stats.totalVoters} voters
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-4">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${stats.totalVoters > 0 ? (stats.votedCount / stats.totalVoters) * 100 : 0}%`,
-                      }}
-                    />
+                      className={`w-3 h-3 rounded-full ${electionSettings?.is_active ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Election Status</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {electionSettings?.is_active ? "Active - Voting in progress" : "Inactive - Voting closed"}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-center text-lg font-semibold text-gray-700">
-                    {stats.totalVoters > 0 ? Math.round((stats.votedCount / stats.totalVoters) * 100) : 0}% Turnout
-                  </p>
+                  <Button
+                    onClick={toggleElectionStatus}
+                    variant={electionSettings?.is_active ? "destructive" : "default"}
+                  >
+                    {electionSettings?.is_active ? "Stop Election" : "Start Election"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Recent Activity & Top Candidates */}
-            <div className="grid gap-6 lg:grid-cols-2">
+            {/* Statistics */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+              <StatCard
+                title="Total Voters"
+                value={stats.totalVoters}
+                icon={Users}
+                color="bg-primary"
+                trend="+12% from last election"
+              />
+              <StatCard
+                title="Votes Cast"
+                value={stats.votedCount}
+                icon={Vote}
+                color="bg-green-500"
+                trend={`${Math.round((stats.votedCount / stats.totalVoters) * 100)}% turnout`}
+              />
+              <StatCard title="Candidates" value={stats.totalCandidates} icon={Trophy} color="bg-secondary" />
+              <StatCard title="Positions" value={stats.totalPositions} icon={BarChart3} color="bg-chart-3" />
+              <StatCard title="Active Elections" value={stats.activeElections} icon={Settings} color="bg-chart-4" />
+            </div>
+          </div>
+        )
+
+      case "voting-codes":
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-foreground">Voting Codes Management</h2>
+              <Button onClick={() => generateVotingCodes(50)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Generate 50 Codes
+              </Button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Election Positions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {positions.map((position) => (
-                      <div key={position.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="font-semibold">{position.position_name}</h4>
-                          <p className="text-sm text-gray-600">{position.category}</p>
-                        </div>
-                        <Badge variant="outline">
-                          {candidates.filter((c) => c.position_id === position.id).length} candidates
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
+                <CardContent className="p-6 text-center">
+                  <Key className="w-8 h-8 mx-auto mb-2 text-primary" />
+                  <div className="text-2xl font-bold text-foreground">{votingCodes.length}</div>
+                  <div className="text-sm text-muted-foreground">Total Codes</div>
                 </CardContent>
               </Card>
-
               <Card>
-                <CardHeader>
-                  <CardTitle>Leading Candidates</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {candidates
-                      .sort((a, b) => b.vote_count - a.vote_count)
-                      .slice(0, 5)
-                      .map((candidate, index) => (
-                        <div key={candidate.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                                index === 0
-                                  ? "bg-yellow-500"
-                                  : index === 1
-                                    ? "bg-gray-400"
-                                    : index === 2
-                                      ? "bg-orange-600"
-                                      : "bg-gray-300"
-                              }`}
-                            >
-                              {index + 1}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold">{candidate.candidate_name}</h4>
-                              <p className="text-sm text-gray-600">{candidate.class_level}</p>
-                            </div>
-                          </div>
-                          <Badge className="bg-green-100 text-green-800">{candidate.vote_count} votes</Badge>
-                        </div>
-                      ))}
+                <CardContent className="p-6 text-center">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                  <div className="text-2xl font-bold text-foreground">
+                    {votingCodes.filter((c) => c.is_used).length}
                   </div>
+                  <div className="text-sm text-muted-foreground">Used Codes</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-6 text-center">
+                  <Clock className="w-8 h-8 mx-auto mb-2 text-orange-500" />
+                  <div className="text-2xl font-bold text-foreground">
+                    {votingCodes.filter((c) => !c.is_used).length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Available Codes</div>
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
 
-          <TabsContent value="candidates" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Voting Codes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                  {votingCodes.slice(0, 12).map((code) => (
+                    <div key={code.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <span className="font-mono font-bold text-foreground">{code.code}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={code.is_used ? "secondary" : "default"}>
+                          {code.is_used ? "Used" : "Available"}
+                        </Badge>
+                        <Button variant="ghost" size="sm">
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case "candidates":
+        return (
+          <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Manage Candidates</h2>
               <Dialog>
@@ -473,41 +478,43 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-card">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Candidate
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Position
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Class
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Votes
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Status
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-background divide-y divide-border">
                       {candidates.map((candidate) => (
                         <tr key={candidate.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{candidate.candidate_name}</div>
-                              <div className="text-sm text-gray-500">{candidate.student_id}</div>
+                              <div className="text-sm font-medium text-foreground">{candidate.candidate_name}</div>
+                              <div className="text-sm text-muted-foreground">{candidate.student_id}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {positions.find((p) => p.id === candidate.position_id)?.position_name}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{candidate.class_level}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                            {candidate.class_level}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge variant="secondary">{candidate.vote_count}</Badge>
                           </td>
@@ -533,9 +540,12 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        )
 
-          <TabsContent value="positions" className="space-y-6">
+      case "positions":
+        return (
+          <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Manage Positions</h2>
               <Dialog>
@@ -590,13 +600,13 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
               {positions.map((position) => (
                 <Card key={position.id}>
                   <CardHeader>
-                    <CardTitle className="text-lg">{position.position_name}</CardTitle>
+                    <CardTitle className="text-lg text-foreground">{position.position_name}</CardTitle>
                     <Badge variant="outline">{position.category}</Badge>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">{position.description}</p>
+                    <p className="text-sm text-muted-foreground mb-4">{position.description}</p>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-foreground">
                         {candidates.filter((c) => c.position_id === position.id).length} candidates
                       </span>
                       <div className="flex gap-2">
@@ -612,12 +622,15 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
                 </Card>
               ))}
             </div>
-          </TabsContent>
+          </div>
+        )
 
-          <TabsContent value="voters" className="space-y-6">
+      case "voters":
+        return (
+          <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Registered Voters</h2>
-              <Button>
+              <Button onClick={addVoter}>
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add Voter
               </Button>
@@ -627,35 +640,35 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-card">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Student
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Class
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Voting Status
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Vote Time
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-background divide-y divide-border">
                       {voters.slice(0, 20).map((voter) => (
                         <tr key={voter.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{voter.full_name}</div>
-                              <div className="text-sm text-gray-500">{voter.student_id}</div>
+                              <div className="text-sm font-medium text-foreground">{voter.full_name}</div>
+                              <div className="text-sm text-muted-foreground">{voter.student_id}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{voter.class_level}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{voter.class_level}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge variant={voter.has_voted ? "default" : "secondary"}>
                               {voter.has_voted ? (
@@ -669,7 +682,7 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
                               )}
                             </Badge>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {voter.vote_timestamp ? new Date(voter.vote_timestamp).toLocaleString() : "-"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -684,10 +697,13 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        )
 
-          <TabsContent value="settings" className="space-y-6">
-            <h2 className="text-xl font-semibold">Election Settings</h2>
+      case "election-settings":
+        return (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-foreground">Election Settings</h2>
 
             <Card>
               <CardHeader>
@@ -724,9 +740,67 @@ export function EnhancedAdminDashboard({ adminUser }: EnhancedAdminDashboardProp
                 <Button>Save Settings</Button>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )
+
+      default:
+        return <div>Page content for {currentPage}</div>
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
       </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      <AdminSidebar currentPage={currentPage} onPageChange={handlePageChange} stats={stats} />
+
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="bg-card shadow-sm border-b border-border">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">
+                  {currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace("-", " ")}
+                </h1>
+                <p className="text-muted-foreground">Lubiri Secondary School E-Voting System</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-foreground">{adminUser.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{adminUser.role}</p>
+                </div>
+                <Button variant="outline" onClick={handleLogout}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 p-6">
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {renderPageContent()}
+        </div>
+      </div>
+
+      <LiveResultsModal isOpen={showLiveResults} onClose={() => setShowLiveResults(false)} />
     </div>
   )
 }
