@@ -5,7 +5,7 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Royal Ballot - Lubiri Secondary School",
   description: "Digital voting platform for Lubiri Secondary School elections of all kinds",
-  Developer: "Sseruwagi Sinclaire Sebastian",
+  Developer: "Unjovu",
   
   icons: {
     icon: "/favicon.ico",

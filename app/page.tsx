@@ -12,7 +12,7 @@ import { SeasonalIntro } from "@/components/seasonal-intro"
 import { motion } from "framer-motion"
 import { CheckCircle, Trophy, Sparkles, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { userStorage } from "@/lib/local-storage"
 import { getCurrentSeason, getSeasonalContainerClass } from "@/lib/seasons"
 
 type AppState = "auth" | "tutorial" | "voting" | "complete"
@@ -56,7 +56,7 @@ export default function VotingApp() {
 
     // Get student name
     try {
-      const { data: user } = await supabase.from("users").select("full_name").eq("student_id", id).single()
+      const user = userStorage.getAll().find((u) => u.id === id)
 
       if (user) {
         setStudentName(user.full_name)
@@ -238,7 +238,7 @@ export default function VotingApp() {
                 }}
                 className="mt-8 text-sm opacity-60"
               >
-                System Built By Sseruwagi Sinclaire Sebastian
+                System Built By Unjovu
               </motion.div>
             </motion.div>
           </motion.div>

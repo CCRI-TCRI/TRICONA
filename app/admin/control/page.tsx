@@ -20,7 +20,7 @@ import {
   Server,
   Zap,
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { userStorage, voteStorage } from "@/lib/local-storage"
 
 interface SystemStatus {
   database: "online" | "offline" | "warning"
@@ -46,6 +46,7 @@ export default function ControlSystemPage() {
   })
 
   useEffect(() => {
+    if (typeof window === "undefined") return
     checkSystemStatus()
     const interval = setInterval(checkSystemStatus, 10000) // Check every 10 seconds
     return () => clearInterval(interval)
@@ -53,26 +54,28 @@ export default function ControlSystemPage() {
 
   const checkSystemStatus = async () => {
     try {
-      // Test database connection
-      const { data, error } = await supabase.from("users").select("count", { count: "exact", head: true })
-
-      if (error) {
-        setSystemStatus((prev) => ({ ...prev, database: "offline" }))
-      } else {
-        setSystemStatus((prev) => ({ ...prev, database: "online" }))
-        setStats((prev) => ({ ...prev, totalVoters: data || 0 }))
+      if (typeof window === "undefined" || !window.localStorage) {
+        setSystemStatus((prev) => ({ ...prev, database: "offline", authentication: "offline" }))
+        return
       }
 
-      // Test real-time connection
-      const channel = supabase.channel("test")
-      channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setSystemStatus((prev) => ({ ...prev, realtime: "connected" }))
-        } else {
-          setSystemStatus((prev) => ({ ...prev, realtime: "disconnected" }))
-        }
-      })
+      // Test local storage
+      try {
+        const users = userStorage.getAll()
+        const votes = voteStorage.getAll()
+        
+        setSystemStatus((prev) => ({ ...prev, database: "online", authentication: "online" }))
+        setStats((prev) => ({
+          ...prev,
+          totalVoters: users.length,
+          activeVotes: votes.length,
+        }))
+      } catch (error) {
+        setSystemStatus((prev) => ({ ...prev, database: "offline" }))
+      }
 
+      // Local storage is always "connected" for real-time
+      setSystemStatus((prev) => ({ ...prev, realtime: "connected" }))
       setLastUpdate(new Date())
     } catch (error) {
       console.error("System check failed:", error)
@@ -83,7 +86,6 @@ export default function ControlSystemPage() {
   const handleStartElection = async () => {
     setLoading(true)
     try {
-      // Simulate starting election
       await new Promise((resolve) => setTimeout(resolve, 2000))
       setSystemStatus((prev) => ({ ...prev, voting: "active" }))
     } catch (error) {
@@ -96,7 +98,6 @@ export default function ControlSystemPage() {
   const handleStopElection = async () => {
     setLoading(true)
     try {
-      // Simulate stopping election
       await new Promise((resolve) => setTimeout(resolve, 2000))
       setSystemStatus((prev) => ({ ...prev, voting: "inactive" }))
     } catch (error) {
@@ -109,7 +110,6 @@ export default function ControlSystemPage() {
   const handlePauseElection = async () => {
     setLoading(true)
     try {
-      // Simulate pausing election
       await new Promise((resolve) => setTimeout(resolve, 1500))
       setSystemStatus((prev) => ({ ...prev, voting: "paused" }))
     } catch (error) {
@@ -126,7 +126,15 @@ export default function ControlSystemPage() {
 
     setLoading(true)
     try {
-      // Simulate system reset
+      // Clear all local storage
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.removeItem("election_users")
+        localStorage.removeItem("election_candidates")
+        localStorage.removeItem("election_positions")
+        localStorage.removeItem("election_votes")
+        // Keep tokens and admin credentials
+      }
+      
       await new Promise((resolve) => setTimeout(resolve, 3000))
       setSystemStatus({
         database: "online",
@@ -134,6 +142,15 @@ export default function ControlSystemPage() {
         authentication: "online",
         realtime: "connected",
       })
+      setStats({
+        totalVoters: 0,
+        activeVotes: 0,
+        systemUptime: "99.9%",
+        responseTime: "45ms",
+      })
+      
+      // Reload page to reinitialize
+      window.location.reload()
     } catch (error) {
       console.error("Failed to reset system:", error)
     } finally {
@@ -416,7 +433,7 @@ export default function ControlSystemPage() {
               </div>
               <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-sm">
                 <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                <span className="text-blue-700 font-medium">Database Connection Verified</span>
+                <span className="text-blue-700 font-medium">Local Storage Verified</span>
                 <span className="text-gray-500 ml-auto">{new Date(Date.now() - 60000).toLocaleTimeString()}</span>
               </div>
               <div className="flex items-center gap-3 p-2 bg-purple-50 rounded-lg text-sm">

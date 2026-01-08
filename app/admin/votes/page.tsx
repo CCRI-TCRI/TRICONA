@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { supabase } from "@/lib/supabase"
+import { voteStorage, userStorage, candidateStorage, positionStorage } from "@/lib/local-storage"
 import { Search, Vote, Clock, CheckCircle } from "lucide-react"
 
 interface VoteRecord {
   id: string
   voter_name: string
+  voter_token: string
   candidate_name: string
   candidate_photo?: string
   position_name: string
@@ -29,38 +30,37 @@ export default function VotesPage() {
   const [positions, setPositions] = useState<string[]>([])
 
   useEffect(() => {
+    if (typeof window === "undefined") return
     fetchVotes()
   }, [])
 
   const fetchVotes = async () => {
     try {
-      const { data: votesData, error } = await supabase
-        .from("votes")
-        .select(`
-          id,
-          created_at,
-          users!inner(full_name),
-          candidates!inner(
-            full_name,
-            photo_url,
-            positions!inner(name)
-          )
-        `)
-        .order("created_at", { ascending: false })
+      if (typeof window === "undefined") return
 
-      if (error) throw error
+      const votesData = voteStorage.getAll()
+      const users = userStorage.getAll()
+      const candidates = candidateStorage.getAll()
+      const positionsData = positionStorage.getAll()
 
-      const formattedVotes: VoteRecord[] = (votesData || []).map((vote) => ({
-        id: vote.id,
-        voter_name: vote.users.full_name,
-        candidate_name: vote.candidates.full_name,
-        candidate_photo: vote.candidates.photo_url,
-        position_name: vote.candidates.positions.name,
-        vote_time: vote.created_at,
-        verified: true, // All votes are considered verified in this system
-      }))
+      const formattedVotes: VoteRecord[] = votesData.map((vote) => {
+        const user = users.find((u) => u.id === vote.user_id)
+        const candidate = candidates.find((c) => c.id === vote.candidate_id)
+        const position = positionsData.find((p) => p.id === vote.position_id)
 
-      setVotes(formattedVotes)
+        return {
+          id: vote.id,
+          voter_name: user?.full_name || "Unknown",
+          voter_token: user?.token || "Unknown",
+          candidate_name: candidate?.full_name || "Unknown",
+          candidate_photo: candidate?.photo_url,
+          position_name: position?.name || "Unknown",
+          vote_time: vote.created_at,
+          verified: true,
+        }
+      })
+
+      setVotes(formattedVotes.sort((a, b) => new Date(b.vote_time).getTime() - new Date(a.vote_time).getTime()))
 
       // Extract unique positions for filter
       const uniquePositions = [...new Set(formattedVotes.map((v) => v.position_name))]
@@ -75,7 +75,8 @@ export default function VotesPage() {
   const filteredVotes = votes.filter((vote) => {
     const matchesSearch =
       vote.voter_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vote.candidate_name.toLowerCase().includes(searchTerm.toLowerCase())
+      vote.candidate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vote.voter_token.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPosition = positionFilter === "all" || vote.position_name === positionFilter
 
     return matchesSearch && matchesPosition
@@ -148,7 +149,7 @@ export default function VotesPage() {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search by voter or candidate name..."
+                  placeholder="Search by voter, candidate, or token..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -188,6 +189,7 @@ export default function VotesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Voter</TableHead>
+                <TableHead>Token</TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Time</TableHead>
@@ -198,6 +200,9 @@ export default function VotesPage() {
               {filteredVotes.map((vote) => (
                 <TableRow key={vote.id}>
                   <TableCell className="font-medium">{vote.voter_name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{vote.voter_token}</Badge>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="w-8 h-8">

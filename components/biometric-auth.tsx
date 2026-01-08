@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import { Camera, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { userStorage, tokenStorage } from "@/lib/local-storage"
 import { toast } from "sonner"
 
 interface BiometricAuthProps {
@@ -20,8 +20,8 @@ interface BiometricAuthProps {
 
 export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
   const [authMethod, setAuthMethod] = useState<"face" | "manual">("manual")
-  const [studentId, setStudentId] = useState("")
-  const [votingCode, setVotingCode] = useState("")
+  const [tokenCode, setTokenCode] = useState("")
+  const [fullName, setFullName] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -66,38 +66,56 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
     setError("")
 
     try {
-      // Authenticate with Supabase database only
-      const { data: user, error: dbError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("student_id", studentId.toUpperCase())
-        .eq("voting_code", votingCode.toUpperCase())
-        .single()
-
-      if (dbError) {
-        console.error("Database error:", dbError)
-        setError("Invalid student ID or voting code. Please check your credentials.")
-        toast.error("Invalid credentials")
+      const token = tokenCode.toUpperCase().trim()
+      
+      // Check if token is valid
+      if (!token || token.length < 4) {
+        setError("Please enter a valid voting token code.")
+        toast.error("Invalid token code")
         return
       }
 
-      if (user) {
-        if (user.has_voted) {
-          setError("This voting code has already been used. Each code can only be used once.")
-          toast.error("Voting code already used")
+      // Check if token is available
+      if (!tokenStorage.isAvailable(token)) {
+        if (tokenStorage.isUsed(token)) {
+          setError("This voting token has already been used. Each token can only be used once.")
+          toast.error("Token already used")
+        } else {
+          setError("Invalid voting token. Please check your token code.")
+          toast.error("Invalid token")
+        }
+        return
+      }
+
+      // Check if user exists
+      let user = userStorage.getByToken(token)
+      
+      if (!user) {
+        // Create new user if doesn't exist
+        if (!fullName.trim()) {
+          setError("Please enter your full name.")
+          toast.error("Full name required")
           return
         }
-
+        
+        user = userStorage.create({
+          token: token,
+          full_name: fullName.trim(),
+        })
         toast.success(`Welcome, ${user.full_name}!`)
-        onAuthSuccess(user.student_id)
-        return
+      } else {
+        if (user.has_voted) {
+          setError("This voting token has already been used. Each token can only be used once.")
+          toast.error("Token already used")
+          return
+        }
+        toast.success(`Welcome back, ${user.full_name}!`)
       }
 
-      setError("Invalid student ID or voting code. Please check your credentials.")
-      toast.error("Invalid credentials")
+      onAuthSuccess(user.id)
     } catch (error) {
       console.error("Authentication error:", error)
-      setError("Authentication failed. Please check your connection and try again.")
+      setError("Authentication failed. Please try again.")
       toast.error("Authentication failed")
     } finally {
       setIsLoading(false)
@@ -139,7 +157,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
               <CardTitle className="text-2xl font-bold text-gray-800">Lubiri Secondary School</CardTitle>
               <p className="text-gray-600 mt-2">2025 Student OP Polls Elections</p>
               <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
-               Lubiri Royal Ballot by Sinclaire
+               Lubiri Royal Ballot by Unjovu
               </Badge>
             </div>
           </CardHeader>
@@ -184,32 +202,17 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                   className="space-y-4"
                 >
                   <div className="space-y-2">
-                    <Label htmlFor="studentId" className="text-gray-700">
-                      Student ID
-                    </Label>
-                    <Input
-                      id="studentId"
-                      type="text"
-                      placeholder="Enter your student ID"
-                      value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
-                      className="border-gray-300 focus:border-blue-500"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="votingCode" className="text-gray-700">
-                      Voting Code
+                    <Label htmlFor="tokenCode" className="text-gray-700">
+                      Voting Token Code
                     </Label>
                     <div className="relative">
                       <Input
-                        id="votingCode"
+                        id="tokenCode"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your voting code"
-                        value={votingCode}
-                        onChange={(e) => setVotingCode(e.target.value)}
-                        className="border-gray-300 focus:border-blue-500 pr-10"
+                        placeholder="Enter your voting token (e.g., VOTE001)"
+                        value={tokenCode}
+                        onChange={(e) => setTokenCode(e.target.value.toUpperCase())}
+                        className="border-gray-300 focus:border-blue-500 pr-10 font-mono"
                         required
                       />
                       <Button
@@ -222,6 +225,22 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
+                    <p className="text-xs text-gray-500">Format: VOTE001 - VOTE100</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="text-gray-700">
+                      Full Name <span className="text-gray-400">(if first time)</span>
+                    </Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="border-gray-300 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500">Only required if this is your first time voting</p>
                   </div>
 
                   {error && (
@@ -233,7 +252,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
                   <Button
                     type="submit"
-                    disabled={isLoading || !studentId || !votingCode}
+                    disabled={isLoading || !tokenCode}
                     className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
                   >
                     {isLoading ? (
@@ -251,9 +270,9 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
                   {/* Information about getting credentials */}
                   <div className="text-center text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                    <p className="font-semibold mb-1 text-gray-700">Need your credentials?</p>
+                    <p className="font-semibold mb-1 text-gray-700">Need your voting token?</p>
                     <p>Contact your class teacher or the election committee</p>
-                    <p>for your Student ID and Voting Code</p>
+                    <p>for your unique voting token code</p>
                   </div>
                 </motion.form>
               ) : (

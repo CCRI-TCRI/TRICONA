@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Shield, Lock } from "lucide-react"
 import { motion } from "framer-motion"
+import { adminStorage } from "@/lib/local-storage"
 
 export function AdminAccessButton() {
   const [isOpen, setIsOpen] = useState(false)
@@ -21,13 +22,13 @@ export function AdminAccessButton() {
     setIsLoading(true)
     setError("")
 
-    // Simple demo authentication - in production, use proper auth
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
+    // Simulate API call for better UX
+    await new Promise((resolve) => setTimeout(resolve, 800))
 
-    if (credentials.username === "sebastiansinc" && credentials.password === "sydneynosiata") {
+    if (adminStorage.verify(credentials.username, credentials.password)) {
       window.location.href = "/admin/dashboard"
     } else {
-      setError("Invalid credentials. Nice Try")
+      setError("Invalid credentials. Please try again.")
     }
 
     setIsLoading(false)
@@ -53,7 +54,7 @@ export function AdminAccessButton() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-center justify-center">
               <Lock className="w-5 h-5 text-primary" />
-              Hey, This is not for you. Get Back
+              Admin Access
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -64,7 +65,7 @@ export function AdminAccessButton() {
                 type="text"
                 value={credentials.username}
                 onChange={(e) => setCredentials((prev) => ({ ...prev, username: e.target.value }))}
-                placeholder="For thy who is Loved Endlessly shall know access"
+                placeholder="Enter admin username"
                 required
               />
             </div>
@@ -75,11 +76,16 @@ export function AdminAccessButton() {
                 type="password"
                 value={credentials.password}
                 onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder="She was loved till the end of time"
+                placeholder="Enter admin password"
                 required
               />
             </div>
             {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
+            <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+              <p>Default credentials:</p>
+              <p>Username: <strong>admin</strong></p>
+              <p>Password: <strong>admin123</strong></p>
+            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Logging in..." : "Access Admin Panel"}
             </Button>

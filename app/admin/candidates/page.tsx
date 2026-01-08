@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase"
+import { candidateStorage, positionStorage, voteStorage } from "@/lib/local-storage"
 import { UserPlus, Search, Trash2, Edit, Trophy, Users, Vote, Crown } from "lucide-react"
 
 interface Position {
@@ -84,79 +84,47 @@ export default function CandidatesPage() {
         { id: "6", name: "Sports Prefect", category: "Games and Sports", max_candidates: 3 },
       ]
 
-      // Try to fetch positions from Supabase
-      const { data: positionsData, error: positionsError } = await supabase
-        .from("positions")
-        .select("*")
-        .order("category", { ascending: true })
-
-      if (positionsError) {
-        console.error("Supabase positions error:", positionsError)
+      // Fetch positions from local storage
+      const positionsData = positionStorage.getAll()
+      if (positionsData.length === 0) {
+        // Create default positions if none exist
+        mockPositions.forEach((pos) => {
+          positionStorage.create({
+            name: pos.name,
+            description: `${pos.name} position`,
+            category: pos.category,
+            display_order: parseInt(pos.id),
+            is_active: true,
+          })
+        })
         setPositions(mockPositions)
       } else {
-        setPositions(positionsData || mockPositions)
-      }
-
-      // Try to fetch candidates from Supabase
-      const { data: candidatesData, error: candidatesError } = await supabase
-        .from("candidates")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (candidatesError) {
-        console.error("Supabase candidates error:", candidatesError)
-        // Create mock candidates
-        const mockCandidates: Candidate[] = [
-          {
-            id: "1",
-            student_id: "LSS001",
-            full_name: "John Doe",
-            class: "S6A",
-            position_id: "1",
-            position_name: "Head Boy",
-            manifesto: "I will work to improve student welfare and create a better learning environment.",
-            vote_count: 0,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            student_id: "LSS002",
-            full_name: "Jane Smith",
-            class: "S6A",
-            position_id: "2",
-            position_name: "Head Girl",
-            manifesto: "Together we can build a stronger school community with better facilities.",
-            vote_count: 0,
-            created_at: new Date().toISOString(),
-          },
-        ]
-        setCandidates(mockCandidates)
-        toast({
-          title: "Demo Mode",
-          description: "Using demo data. Database connection failed.",
-          variant: "destructive",
-        })
-      } else {
-        // Get vote counts for each candidate
-        const candidatesWithVotes = await Promise.all(
-          (candidatesData || []).map(async (candidate) => {
-            const { count } = await supabase
-              .from("votes")
-              .select("*", { count: "exact", head: true })
-              .eq("candidate_id", candidate.id)
-
-            const position = positions.find((p) => p.id === candidate.position_id)
-
-            return {
-              ...candidate,
-              position_name: position?.name || "Unknown Position",
-              vote_count: count || 0,
-            }
-          }),
+        setPositions(
+          positionsData.map((p) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            max_candidates: 5,
+          })),
         )
-
-        setCandidates(candidatesWithVotes)
       }
+
+      // Fetch candidates from local storage
+      const candidatesData = candidateStorage.getAll()
+      const votes = voteStorage.getAll()
+
+      const candidatesWithVotes = candidatesData.map((candidate) => {
+        const position = positionsData.find((p) => p.id === candidate.position_id)
+        const voteCount = votes.filter((v) => v.candidate_id === candidate.id).length
+
+        return {
+          ...candidate,
+          position_name: position?.name || "Unknown Position",
+          vote_count: voteCount,
+        }
+      })
+
+      setCandidates(candidatesWithVotes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
     } catch (error) {
       console.error("Error fetching data:", error)
       toast({
@@ -196,37 +164,28 @@ export default function CandidatesPage() {
         created_at: new Date().toISOString(),
       }
 
-      // Try to save to Supabase
-      const { data, error } = await supabase.from("candidates").insert([candidateData]).select()
+      // Save to local storage
+      const savedCandidate = candidateStorage.create({
+        full_name: candidateData.full_name,
+        student_id: candidateData.student_id,
+        class: candidateData.class,
+        position_id: candidateData.position_id,
+        manifesto: candidateData.manifesto,
+        photo_url: candidateData.photo_url,
+      })
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Add to local state if database fails
-        const position = positions.find((p) => p.id === newCandidate.position_id)
-        const mockCandidate: Candidate = {
-          id: Date.now().toString(),
-          ...candidateData,
-          position_name: position?.name || "Unknown Position",
-          vote_count: 0,
-        }
-        setCandidates((prev) => [mockCandidate, ...prev])
-        toast({
-          title: "Demo Mode",
-          description: "Candidate added to demo data (not saved to database)",
-        })
-      } else {
-        const position = positions.find((p) => p.id === newCandidate.position_id)
-        const newCandidateWithPosition = {
-          ...data[0],
-          position_name: position?.name || "Unknown Position",
-          vote_count: 0,
-        }
-        setCandidates((prev) => [newCandidateWithPosition, ...prev])
-        toast({
-          title: "Success",
-          description: "Candidate added successfully",
-        })
+      const position = positions.find((p) => p.id === newCandidate.position_id)
+      const newCandidateWithPosition: Candidate = {
+        ...savedCandidate,
+        position_name: position?.name || "Unknown Position",
+        vote_count: 0,
       }
+
+      setCandidates((prev) => [newCandidateWithPosition, ...prev])
+      toast({
+        title: "Success",
+        description: "Candidate added successfully",
+      })
 
       setNewCandidate({
         full_name: "",
@@ -254,21 +213,17 @@ export default function CandidatesPage() {
 
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from("candidates")
-        .update({
-          full_name: editingCandidate.full_name,
-          student_id: editingCandidate.student_id,
-          class: editingCandidate.class,
-          position_id: editingCandidate.position_id,
-          manifesto: editingCandidate.manifesto,
-          photo_url: editingCandidate.photo_url,
-        })
-        .eq("id", editingCandidate.id)
+      // Update in local storage
+      const updatedCandidate = candidateStorage.update(editingCandidate.id, {
+        full_name: editingCandidate.full_name,
+        student_id: editingCandidate.student_id,
+        class: editingCandidate.class,
+        position_id: editingCandidate.position_id,
+        manifesto: editingCandidate.manifesto,
+        photo_url: editingCandidate.photo_url,
+      })
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Update local state if database fails
+      if (updatedCandidate) {
         const position = positions.find((p) => p.id === editingCandidate.position_id)
         setCandidates((prev) =>
           prev.map((c) =>
@@ -278,14 +233,14 @@ export default function CandidatesPage() {
           ),
         )
         toast({
-          title: "Demo Mode",
-          description: "Candidate updated in demo data",
-        })
-      } else {
-        await fetchData()
-        toast({
           title: "Success",
           description: "Candidate updated successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update candidate",
+          variant: "destructive",
         })
       }
 
@@ -305,21 +260,19 @@ export default function CandidatesPage() {
   const deleteCandidate = async (id: string) => {
     setSaving(true)
     try {
-      const { error } = await supabase.from("candidates").delete().eq("id", id)
-
-      if (error) {
-        console.error("Supabase error:", error)
-        // Remove from local state if database fails
-        setCandidates((prev) => prev.filter((c) => c.id !== id))
-        toast({
-          title: "Demo Mode",
-          description: "Candidate removed from demo data",
-        })
-      } else {
+      // Delete from local storage
+      const deleted = candidateStorage.delete(id)
+      if (deleted) {
         setCandidates((prev) => prev.filter((c) => c.id !== id))
         toast({
           title: "Success",
           description: "Candidate deleted successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete candidate",
+          variant: "destructive",
         })
       }
     } catch (error) {

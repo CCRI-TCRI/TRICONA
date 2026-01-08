@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { supabase } from "@/lib/supabase"
+import { getPositionsWithCandidates, voteStorage, userStorage } from "@/lib/local-storage"
 import { Trophy, Users, TrendingUp, Crown } from "lucide-react"
 
 interface LiveResultData {
@@ -26,6 +26,7 @@ export default function LiveResultsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (typeof window === "undefined") return
     fetchResults()
     const interval = setInterval(fetchResults, 3000) // Refresh every 3 seconds
     return () => clearInterval(interval)
@@ -42,64 +43,40 @@ export default function LiveResultsPage() {
 
   const fetchResults = async () => {
     try {
-      const { data: positions, error: positionsError } = await supabase
-        .from("positions")
-        .select("*")
-        .order("category", { ascending: true })
+      if (typeof window === "undefined") return
 
-      if (positionsError) throw positionsError
+      const positionsWithCandidates = getPositionsWithCandidates()
+      const votes = voteStorage.getAll()
+      const users = userStorage.getAll()
 
-      const resultsData: LiveResultData[] = []
+      const resultsData: LiveResultData[] = positionsWithCandidates.map((position) => {
+        const positionVotes = votes.filter((v) => v.position_id === position.id)
+        const totalVotesForPosition = positionVotes.length
 
-      for (const position of positions || []) {
-        const { data: candidates, error: candidatesError } = await supabase
-          .from("candidates")
-          .select("*")
-          .eq("position_id", position.id)
-
-        if (candidatesError) throw candidatesError
-
-        const candidatesWithVotes = await Promise.all(
-          (candidates || []).map(async (candidate) => {
-            const { count } = await supabase
-              .from("votes")
-              .select("*", { count: "exact", head: true })
-              .eq("candidate_id", candidate.id)
-
-            return {
-              ...candidate,
-              vote_count: count || 0,
-            }
-          }),
-        )
-
-        const positionTotalVotes = candidatesWithVotes.reduce((sum, c) => sum + c.vote_count, 0)
-
-        const candidatesWithPercentage = candidatesWithVotes
-          .map((candidate) => ({
+        const candidatesWithVotes = position.candidates.map((candidate) => {
+          const candidateVotes = votes.filter((v) => v.candidate_id === candidate.id).length
+          return {
             ...candidate,
-            percentage: positionTotalVotes > 0 ? (candidate.vote_count / positionTotalVotes) * 100 : 0,
-          }))
-          .sort((a, b) => b.vote_count - a.vote_count)
+            vote_count: candidateVotes,
+            percentage: totalVotesForPosition > 0 ? (candidateVotes / totalVotesForPosition) * 100 : 0,
+          }
+        })
 
-        resultsData.push({
+        return {
           position_name: position.name,
           category: position.category,
-          candidates: candidatesWithPercentage,
-          total_votes: positionTotalVotes,
-        })
-      }
+          candidates: candidatesWithVotes.sort((a, b) => b.vote_count - a.vote_count),
+          total_votes: totalVotesForPosition,
+        }
+      })
 
-      const { count: totalVotesCount } = await supabase.from("votes").select("*", { count: "exact", head: true })
-      const { count: totalVotersCount } = await supabase.from("users").select("*", { count: "exact", head: true })
-      const { count: votedCount } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("has_voted", true)
+      const totalVotesCount = votes.length
+      const totalVotersCount = users.length
+      const votedCount = users.filter((u) => u.has_voted).length
 
       setResults(resultsData)
-      setTotalVotes(totalVotesCount || 0)
-      setTurnout(totalVotersCount ? ((votedCount || 0) / totalVotersCount) * 100 : 0)
+      setTotalVotes(totalVotesCount)
+      setTurnout(totalVotersCount > 0 ? (votedCount / totalVotersCount) * 100 : 0)
     } catch (error) {
       console.error("Error fetching results:", error)
     } finally {

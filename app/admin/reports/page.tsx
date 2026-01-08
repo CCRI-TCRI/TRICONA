@@ -3,14 +3,15 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { supabase } from "@/lib/supabase"
+import { positionStorage, candidateStorage, voteStorage, userStorage, getPositionsWithCandidates } from "@/lib/local-storage"
 import { Download, FileText, Calendar, Users, Vote } from "lucide-react"
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
-  const [reportType, setReportType] = useState("summary")
 
   const generateReport = async (type: string) => {
+    if (typeof window === "undefined") return
+    
     setLoading(true)
     try {
       let csvContent = ""
@@ -50,21 +51,17 @@ export default function ReportsPage() {
   }
 
   const generateSummaryReport = async () => {
-    const { data: positions } = await supabase.from("positions").select("*")
-    const { data: candidates } = await supabase.from("candidates").select("*")
-    const { data: votes } = await supabase.from("votes").select("*")
-    const { data: users } = await supabase.from("users").select("*")
+    const positionsWithCandidates = getPositionsWithCandidates()
+    const votes = voteStorage.getAll()
 
     const header = ["Position", "Total Candidates", "Total Votes", "Winner", "Winner Votes"].join(",")
     const rows = []
 
-    for (const position of positions || []) {
-      const positionCandidates = candidates?.filter((c) => c.position_id === position.id) || []
-      const positionVotes = votes?.filter((v) => positionCandidates.some((c) => c.id === v.candidate_id)) || []
-
-      const candidateVotes = positionCandidates.map((candidate) => ({
+    for (const position of positionsWithCandidates) {
+      const positionVotes = votes.filter((v) => v.position_id === position.id)
+      const candidateVotes = position.candidates.map((candidate) => ({
         ...candidate,
-        voteCount: votes?.filter((v) => v.candidate_id === candidate.id).length || 0,
+        voteCount: votes.filter((v) => v.candidate_id === candidate.id).length,
       }))
 
       const winner = candidateVotes.sort((a, b) => b.voteCount - a.voteCount)[0]
@@ -72,7 +69,7 @@ export default function ReportsPage() {
       rows.push(
         [
           position.name,
-          positionCandidates.length,
+          position.candidates.length,
           positionVotes.length,
           winner?.full_name || "No candidates",
           winner?.voteCount || 0,
@@ -84,36 +81,39 @@ export default function ReportsPage() {
   }
 
   const generateDetailedReport = async () => {
-    const { data: votes } = await supabase.from("votes").select(`
-        *,
-        candidates(*),
-        users(*)
-      `)
+    const votes = voteStorage.getAll()
+    const users = userStorage.getAll()
+    const candidates = candidateStorage.getAll()
+    const positions = positionStorage.getAll()
 
-    const header = ["Vote ID", "Voter Name", "Candidate Name", "Position", "Vote Time"].join(",")
-    const rows = (votes || []).map((vote) =>
-      [
+    const header = ["Vote ID", "Voter Token", "Voter Name", "Candidate Name", "Position", "Vote Time"].join(",")
+    const rows = votes.map((vote) => {
+      const user = users.find((u) => u.id === vote.user_id)
+      const candidate = candidates.find((c) => c.id === vote.candidate_id)
+      const position = positions.find((p) => p.id === vote.position_id)
+
+      return [
         vote.id,
-        vote.users?.full_name || "Unknown",
-        vote.candidates?.full_name || "Unknown",
-        "Position", // You'd need to join with positions table
+        user?.token || "Unknown",
+        user?.full_name || "Unknown",
+        candidate?.full_name || "Unknown",
+        position?.name || "Unknown",
         new Date(vote.created_at).toLocaleString(),
-      ].join(","),
-    )
+      ].join(",")
+    })
 
     return [header, ...rows].join("\n")
   }
 
   const generateVotersReport = async () => {
-    const { data: users } = await supabase.from("users").select("*")
+    const users = userStorage.getAll()
 
-    const header = ["Student ID", "Full Name", "Class", "Voting Code", "Has Voted", "Voted At"].join(",")
-    const rows = (users || []).map((user) =>
+    const header = ["Token", "Full Name", "Class", "Has Voted", "Voted At"].join(",")
+    const rows = users.map((user) =>
       [
-        user.student_id,
+        user.token,
         user.full_name,
-        user.class,
-        user.voting_code,
+        user.class || "N/A",
         user.has_voted ? "Yes" : "No",
         user.voted_at || "N/A",
       ].join(","),
@@ -123,21 +123,24 @@ export default function ReportsPage() {
   }
 
   const generateCandidatesReport = async () => {
-    const { data: candidates } = await supabase.from("candidates").select(`
-        *,
-        positions(name)
-      `)
+    const candidates = candidateStorage.getAll()
+    const positions = positionStorage.getAll()
+    const votes = voteStorage.getAll()
 
-    const header = ["Student ID", "Full Name", "Class", "Position", "Manifesto"].join(",")
-    const rows = (candidates || []).map((candidate) =>
-      [
+    const header = ["Student ID", "Full Name", "Class", "Position", "Vote Count", "Manifesto"].join(",")
+    const rows = candidates.map((candidate) => {
+      const position = positions.find((p) => p.id === candidate.position_id)
+      const voteCount = votes.filter((v) => v.candidate_id === candidate.id).length
+
+      return [
         candidate.student_id,
         candidate.full_name,
         candidate.class,
-        candidate.positions?.name || "Unknown",
-        `"${candidate.manifesto.replace(/"/g, '""')}"`,
-      ].join(","),
-    )
+        position?.name || "Unknown",
+        voteCount,
+        `"${(candidate.manifesto || "").replace(/"/g, '""')}"`,
+      ].join(",")
+    })
 
     return [header, ...rows].join("\n")
   }

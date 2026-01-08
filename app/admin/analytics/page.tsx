@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { motion } from "framer-motion"
 import { Users, Vote, TrendingUp, BarChart3, Clock, Target, Activity, RefreshCw } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { userStorage, candidateStorage, positionStorage, voteStorage, getPositionsWithCandidates } from "@/lib/local-storage"
 import { Button } from "@/components/ui/button"
 
 interface AnalyticsData {
@@ -32,6 +32,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (typeof window === "undefined") return
     loadAnalytics()
     const interval = setInterval(loadAnalytics, 30000) // Refresh every 30 seconds
     return () => clearInterval(interval)
@@ -39,68 +40,67 @@ export default function AnalyticsPage() {
 
   const loadAnalytics = async () => {
     try {
-      // Get basic stats
-      const { count: totalVoters } = await supabase.from("users").select("*", { count: "exact", head: true })
-      const { count: votedCount } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("has_voted", true)
+      if (typeof window === "undefined") return
 
-      const pendingVoters = (totalVoters || 0) - (votedCount || 0)
-      const turnoutRate = totalVoters ? Math.round(((votedCount || 0) / totalVoters) * 100) : 0
+      const users = userStorage.getAll()
+      const votes = voteStorage.getAll()
+      const positionsWithCandidates = getPositionsWithCandidates()
+
+      const totalVoters = users.length
+      const votedCount = users.filter((u) => u.has_voted).length
+      const pendingVoters = totalVoters - votedCount
+      const turnoutRate = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0
 
       // Get participation by class
-      const { data: classData } = await supabase.from("users").select("class, has_voted")
-      const classStats = classData?.reduce((acc: any, user) => {
+      const classStats: Record<string, { total: number; voted: number }> = {}
+      users.forEach((user) => {
         const className = user.class || "Unknown"
-        if (!acc[className]) {
-          acc[className] = { total: 0, voted: 0 }
+        if (!classStats[className]) {
+          classStats[className] = { total: 0, voted: 0 }
         }
-        acc[className].total++
+        classStats[className].total++
         if (user.has_voted) {
-          acc[className].voted++
+          classStats[className].voted++
         }
-        return acc
-      }, {})
+      })
 
-      const participationByClass = Object.entries(classStats || {}).map(([className, stats]: [string, any]) => ({
+      const participationByClass = Object.entries(classStats).map(([className, stats]) => ({
         class: className,
         voted: stats.voted,
         total: stats.total,
         percentage: Math.round((stats.voted / stats.total) * 100),
       }))
 
-      // Get voting timeline (simulated hourly data)
-      const votingTimeline = Array.from({ length: 12 }, (_, i) => ({
-        hour: `${8 + i}:00`,
-        votes: Math.floor(Math.random() * 50) + 10,
-      }))
+      // Get voting timeline (group votes by hour)
+      const timelineMap: Record<string, number> = {}
+      votes.forEach((vote) => {
+        const hour = new Date(vote.created_at).getHours()
+        const hourKey = `${hour}:00`
+        timelineMap[hourKey] = (timelineMap[hourKey] || 0) + 1
+      })
+
+      const votingTimeline = Array.from({ length: 12 }, (_, i) => {
+        const hour = 8 + i
+        const hourKey = `${hour}:00`
+        return {
+          hour: hourKey,
+          votes: timelineMap[hourKey] || 0,
+        }
+      })
 
       // Get position statistics
-      const { data: positions } = await supabase.from("positions").select("*")
-      const positionStats = await Promise.all(
-        (positions || []).map(async (position) => {
-          const { count: candidates } = await supabase
-            .from("candidates")
-            .select("*", { count: "exact", head: true })
-            .eq("position_id", position.id)
-
-          const { count: votes } = await supabase
-            .from("votes")
-            .select("*", { count: "exact", head: true })
-            .eq("position_id", position.id)
-
-          return {
-            position: position.title,
-            candidates: candidates || 0,
-            votes: votes || 0,
-          }
-        }),
-      )
+      const positionStats = positionsWithCandidates.map((position) => {
+        const positionVotes = votes.filter((v) => v.position_id === position.id)
+        return {
+          position: position.name,
+          candidates: position.candidates.length,
+          votes: positionVotes.length,
+        }
+      })
 
       setAnalytics({
-        totalVoters: totalVoters || 0,
-        votedCount: votedCount || 0,
+        totalVoters,
+        votedCount,
         pendingVoters,
         turnoutRate,
         participationByClass,
@@ -207,7 +207,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analytics.participationByClass.map((classData, index) => (
+                {analytics.participationByClass.map((classData) => (
                   <div key={classData.class} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{classData.class}</span>
@@ -234,20 +234,23 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {analytics.votingTimeline.map((timeData, index) => (
-                  <div key={timeData.hour} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{timeData.hour}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${(timeData.votes / 60) * 100}%` }}
-                        />
+                {analytics.votingTimeline.map((timeData) => {
+                  const maxVotes = Math.max(...analytics.votingTimeline.map((t) => t.votes), 1)
+                  return (
+                    <div key={timeData.hour} className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{timeData.hour}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full"
+                            style={{ width: `${(timeData.votes / maxVotes) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-muted-foreground w-8">{timeData.votes}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground w-8">{timeData.votes}</span>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
@@ -265,7 +268,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {analytics.positionStats.map((position, index) => (
+              {analytics.positionStats.map((position) => (
                 <div key={position.position} className="border rounded-lg p-4">
                   <h3 className="font-semibold text-lg mb-2">{position.position}</h3>
                   <div className="space-y-2">

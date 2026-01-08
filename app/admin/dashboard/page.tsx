@@ -24,7 +24,7 @@ import {
   Tv,
   Zap,
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { userStorage, candidateStorage, positionStorage, voteStorage, getPositionsWithCandidates } from "@/lib/local-storage"
 
 interface DashboardStats {
   totalVoters: number
@@ -59,129 +59,171 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState<any[]>([])
 
   useEffect(() => {
-    loadData()
+    // Ensure we're in the browser
+    if (typeof window === "undefined") return
 
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel("votes")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "votes" }, () => {
-        loadData()
-      })
-      .subscribe()
+    // Initialize and load data
+    const initializeAndLoad = async () => {
+      try {
+        await loadData()
+      } catch (error) {
+        console.error("Error initializing dashboard:", error)
+        // Always set loading to false even on error
+        setLoading(false)
+      }
+    }
 
-    const interval = setInterval(loadData, 30000) // Auto-refresh every 30 seconds
+    initializeAndLoad()
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      if (typeof window !== "undefined") {
+        loadData().catch((error) => {
+          console.error("Error refreshing data:", error)
+        })
+      }
+    }, 30000)
 
     return () => {
-      subscription.unsubscribe()
       clearInterval(interval)
     }
   }, [])
 
   const loadData = async () => {
+    // Safety timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("Loading timeout - forcing loading state to false")
+        setLoading(false)
+      }
+    }, 5000)
+
     try {
+      // Check if localStorage is available
+      if (typeof window === "undefined" || !window.localStorage) {
+        throw new Error("LocalStorage not available")
+      }
+
       await Promise.all([loadStats(), loadPostResults(), loadRecentActivity()])
     } catch (error) {
       console.error("Error loading data:", error)
+      // Set default values on error
+      setStats({
+        totalVoters: 0,
+        votedCount: 0,
+        totalCandidates: 0,
+        totalVotes: 0,
+      })
+      setPostResults([])
+      setRecentActivity([])
     } finally {
+      clearTimeout(timeout)
       setLoading(false)
     }
   }
 
   const loadStats = async () => {
     try {
-      // Get total voters
-      const { count: totalVoters } = await supabase.from("users").select("*", { count: "exact", head: true })
+      if (typeof window === "undefined") return
 
-      // Get voted count
-      const { count: votedCount } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("has_voted", true)
+      const users = userStorage.getAll()
+      const candidates = candidateStorage.getAll()
+      const votes = voteStorage.getAll()
 
-      // Get total candidates
-      const { count: totalCandidates } = await supabase.from("candidates").select("*", { count: "exact", head: true })
-
-      // Get total votes
-      const { count: totalVotes } = await supabase.from("votes").select("*", { count: "exact", head: true })
+      const totalVoters = users.length
+      const votedCount = users.filter((u) => u.has_voted).length
+      const totalCandidates = candidates.length
+      const totalVotes = votes.length
 
       setStats({
-        totalVoters: totalVoters || 0,
-        votedCount: votedCount || 0,
-        totalCandidates: totalCandidates || 0,
-        totalVotes: totalVotes || 0,
+        totalVoters,
+        votedCount,
+        totalCandidates,
+        totalVotes,
       })
     } catch (error) {
       console.error("Error loading stats:", error)
+      // Set default stats on error
+      setStats({
+        totalVoters: 0,
+        votedCount: 0,
+        totalCandidates: 0,
+        totalVotes: 0,
+      })
     }
   }
 
   const loadPostResults = async () => {
     try {
-      const { data: positions } = await supabase
-        .from("positions")
-        .select(`
-          *,
-          candidates (*),
-          election_categories (name)
-        `)
-        .eq("is_active", true)
+      if (typeof window === "undefined") {
+        setPostResults([])
+        return
+      }
 
-      const results =
-        positions?.map((position) => {
-          const candidates = position.candidates.map((candidate: any) => ({
-            id: candidate.id,
-            name: candidate.full_name,
-            votes: candidate.vote_count,
-            percentage:
-              position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0) > 0
-                ? Math.round(
-                    (candidate.vote_count /
-                      position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0)) *
-                      100,
-                  )
-                : 0,
-            isLeading: candidate.vote_count === Math.max(...position.candidates.map((c: any) => c.vote_count)),
-          }))
+      const positionsWithCandidates = getPositionsWithCandidates()
 
-          return {
-            postId: position.id,
-            postTitle: position.title,
-            category: position.election_categories.name,
-            candidates: candidates.sort((a: any, b: any) => b.votes - a.votes),
-            totalVotes: position.candidates.reduce((sum: number, c: any) => sum + c.vote_count, 0),
-          }
-        }) || []
+      const results = positionsWithCandidates.map((position) => {
+        const totalVotesForPosition = position.candidates.reduce((sum, c) => sum + c.vote_count, 0)
+
+        const candidates = position.candidates.map((candidate) => ({
+          id: candidate.id,
+          name: candidate.full_name,
+          votes: candidate.vote_count,
+          percentage: totalVotesForPosition > 0 ? Math.round((candidate.vote_count / totalVotesForPosition) * 100) : 0,
+          isLeading:
+            candidate.vote_count === Math.max(...position.candidates.map((c) => c.vote_count), 0) &&
+            candidate.vote_count > 0,
+        }))
+
+        return {
+          postId: position.id,
+          postTitle: position.name,
+          category: position.category,
+          candidates: candidates.sort((a, b) => b.votes - a.votes),
+          totalVotes: totalVotesForPosition,
+        }
+      })
 
       setPostResults(results)
     } catch (error) {
       console.error("Error loading post results:", error)
+      setPostResults([])
     }
   }
 
   const loadRecentActivity = async () => {
     try {
-      const { data: recentVotes } = await supabase
-        .from("votes")
-        .select(`
-          *,
-          users (student_id),
-          candidates (full_name),
-          positions (title)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(10)
+      if (typeof window === "undefined") {
+        setRecentActivity([])
+        return
+      }
 
-      const activity =
-        recentVotes?.map((vote) => ({
+      const votes = voteStorage.getAll()
+      const users = userStorage.getAll()
+      const candidates = candidateStorage.getAll()
+      const positions = positionStorage.getAll()
+
+      const recentVotes = votes
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 10)
+
+      const activity = recentVotes.map((vote) => {
+        const user = users.find((u) => u.id === vote.user_id)
+        const candidate = candidates.find((c) => c.id === vote.candidate_id)
+        const position = positions.find((p) => p.id === vote.position_id)
+
+        return {
           id: vote.id,
-          voter: `Student ${vote.users.student_id}`,
-          action: `voted for ${vote.candidates.full_name} (${vote.positions.title})`,
+          voter: user ? `Token ${user.token}` : "Unknown",
+          action: `voted for ${candidate?.full_name || "Unknown"} (${position?.name || "Unknown"})`,
           time: new Date(vote.created_at).toLocaleString(),
-        })) || []
+        }
+      })
 
       setRecentActivity(activity)
     } catch (error) {
       console.error("Error loading recent activity:", error)
+      setRecentActivity([])
     }
   }
 
@@ -255,10 +297,11 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-lg font-medium">Loading dashboard...</p>
+          <p className="text-sm text-muted-foreground mt-2">If this takes too long, please refresh the page</p>
         </div>
       </div>
     )
