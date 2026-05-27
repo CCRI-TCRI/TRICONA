@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { motion, AnimatePresence } from "framer-motion"
 import { CheckCircle, User, Trophy, Users, Briefcase, Clock, AlertTriangle, Loader2, Lock, ChevronRight, ChevronLeft } from "lucide-react"
-import { getPositionsWithCandidates, voteStorage, userStorage, candidateStorage } from "@/lib/local-storage"
+import { getPositionsWithCandidates, voteStorage, userStorage } from "@/lib/supabase-db"
 import { toast } from "sonner"
 
 interface Candidate {
@@ -69,7 +69,7 @@ export function VotingBallot({ studentId, onVoteComplete }: VotingBallotProps) {
   const fetchElectionData = async () => {
     setIsLoading(true)
     try {
-      const positionsWithCandidates = getPositionsWithCandidates()
+      const positionsWithCandidates = await getPositionsWithCandidates()
       
       // Filter out positions with no candidates
       const validPositions = positionsWithCandidates.filter(
@@ -84,7 +84,7 @@ export function VotingBallot({ studentId, onVoteComplete }: VotingBallotProps) {
       setPositions(validPositions)
       toast.success(`Loaded ${validPositions.length} positions with candidates`)
     } catch (error) {
-      console.error("Error fetching election data:", error)
+      console.error("[v0] Error fetching election data:", error)
       toast.error("Failed to load election data. Please check your connection and try again.")
     } finally {
       setIsLoading(false)
@@ -133,8 +133,9 @@ export function VotingBallot({ studentId, onVoteComplete }: VotingBallotProps) {
     setIsSubmitting(true)
 
     try {
-      // Get user data
-      const user = userStorage.getAll().find((u) => u.id === studentId)
+      // Get user data from Supabase
+      const users = await userStorage.getAll()
+      const user = users.find((u) => u.id === studentId)
 
       if (!user) {
         toast.error("User not found. Please contact the election committee.")
@@ -155,16 +156,14 @@ export function VotingBallot({ studentId, onVoteComplete }: VotingBallotProps) {
         position_id: positionId,
       }))
 
-      // Insert votes
-      voteStorage.createBatch(voteRecords)
-
-      // Mark user as voted
-      userStorage.markAsVoted(user.id)
+      // Insert votes into Supabase and mark user as voted
+      await voteStorage.createBatch(voteRecords)
+      await userStorage.markAsVoted(user.id)
 
       toast.success("Votes submitted successfully!")
       onVoteComplete()
     } catch (error) {
-      console.error("Error submitting votes:", error)
+      console.error("[v0] Error submitting votes:", error)
       toast.error("Failed to submit votes. Please try again.")
     } finally {
       setIsSubmitting(false)

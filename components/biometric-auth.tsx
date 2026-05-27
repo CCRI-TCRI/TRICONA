@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import { Camera, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
-import { userStorage, tokenStorage } from "@/lib/local-storage"
+import { userStorage } from "@/lib/supabase-db"
 import { toast } from "sonner"
 
 interface BiometricAuthProps {
@@ -67,54 +67,32 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
     try {
       const token = tokenCode.toUpperCase().trim()
-      
-      // Check if token is valid
+
       if (!token || token.length < 4) {
         setError("Please enter a valid voting token code.")
         toast.error("Invalid token code")
         return
       }
 
-      // Check if token is available
-      if (!tokenStorage.isAvailable(token)) {
-        if (tokenStorage.isUsed(token)) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-        } else {
-          setError("Invalid voting token. Please check your token code.")
-          toast.error("Invalid token")
-        }
+      // Look up voter by voting_code in Supabase
+      const user = await userStorage.getByToken(token)
+
+      if (!user) {
+        setError("Invalid voting token. Please check your code or contact the election committee.")
+        toast.error("Invalid token")
         return
       }
 
-      // Check if user exists
-      let user = userStorage.getByToken(token)
-      
-      if (!user) {
-        // Create new user if doesn't exist
-        if (!fullName.trim()) {
-          setError("Please enter your full name.")
-          toast.error("Full name required")
-          return
-        }
-        
-        user = userStorage.create({
-          token: token,
-          full_name: fullName.trim(),
-        })
-        toast.success(`Welcome, ${user.full_name}!`)
-      } else {
-        if (user.has_voted) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-          return
-        }
-        toast.success(`Welcome back, ${user.full_name}!`)
+      if (user.has_voted) {
+        setError("This voting token has already been used. Each token can only be used once.")
+        toast.error("Token already used")
+        return
       }
 
+      toast.success(`Welcome, ${user.full_name}!`)
       onAuthSuccess(user.id)
     } catch (error) {
-      console.error("Authentication error:", error)
+      console.error("[v0] Authentication error:", error)
       setError("Authentication failed. Please try again.")
       toast.error("Authentication failed")
     } finally {
@@ -226,21 +204,6 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500">Format: VOTE001 - VOTE100</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-gray-700">
-                      Full Name <span className="text-gray-400">(if first time)</span>
-                    </Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="border-gray-300 focus:border-blue-500"
-                    />
-                    <p className="text-xs text-gray-500">Only required if this is your first time voting</p>
                   </div>
 
                   {error && (

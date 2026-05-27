@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { getPositionsWithCandidates, voteStorage, userStorage } from "@/lib/local-storage"
+import { getPositionsWithCandidates, voteStorage, userStorage } from "@/lib/supabase-db"
 import { Trophy, Users, TrendingUp, Crown } from "lucide-react"
 
 interface LiveResultData {
@@ -26,9 +26,8 @@ export default function LiveResultsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (typeof window === "undefined") return
     fetchResults()
-    const interval = setInterval(fetchResults, 3000) // Refresh every 3 seconds
+    const interval = setInterval(fetchResults, 5000) // Refresh every 5 seconds
     return () => clearInterval(interval)
   }, [])
 
@@ -43,11 +42,11 @@ export default function LiveResultsPage() {
 
   const fetchResults = async () => {
     try {
-      if (typeof window === "undefined") return
-
-      const positionsWithCandidates = getPositionsWithCandidates()
-      const votes = voteStorage.getAll()
-      const users = userStorage.getAll()
+      const [positionsWithCandidates, votes, users] = await Promise.all([
+        getPositionsWithCandidates(),
+        voteStorage.getAll(),
+        userStorage.getAll(),
+      ])
 
       const resultsData: LiveResultData[] = positionsWithCandidates.map((position) => {
         const positionVotes = votes.filter((v) => v.position_id === position.id)
@@ -70,15 +69,13 @@ export default function LiveResultsPage() {
         }
       })
 
-      const totalVotesCount = votes.length
-      const totalVotersCount = users.length
       const votedCount = users.filter((u) => u.has_voted).length
 
       setResults(resultsData)
-      setTotalVotes(totalVotesCount)
-      setTurnout(totalVotersCount > 0 ? (votedCount / totalVotersCount) * 100 : 0)
+      setTotalVotes(votes.length)
+      setTurnout(users.length > 0 ? (votedCount / users.length) * 100 : 0)
     } catch (error) {
-      console.error("Error fetching results:", error)
+      console.error("[v0] Error fetching live results:", error)
     } finally {
       setLoading(false)
     }

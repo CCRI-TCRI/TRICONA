@@ -12,7 +12,7 @@ import { SeasonalIntro } from "@/components/seasonal-intro"
 import { motion } from "framer-motion"
 import { CheckCircle, Trophy, Sparkles, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { userStorage } from "@/lib/local-storage"
+import { userStorage } from "@/lib/supabase-db"
 import { getCurrentSeason, getSeasonalContainerClass } from "@/lib/seasons"
 
 type AppState = "auth" | "tutorial" | "voting" | "complete"
@@ -54,15 +54,15 @@ export default function VotingApp() {
   const handleAuthSuccess = async (id: string) => {
     setStudentId(id)
 
-    // Get student name
+    // Get student name from Supabase
     try {
-      const user = userStorage.getAll().find((u) => u.id === id)
-
+      const users = await userStorage.getAll()
+      const user = users.find((u) => u.id === id)
       if (user) {
         setStudentName(user.full_name)
       }
     } catch (error) {
-      console.error("Error fetching user data:", error)
+      console.error("[v0] Error fetching user data:", error)
     }
 
     setAppState("tutorial")

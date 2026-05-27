@@ -23,14 +23,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "@/hooks/use-toast"
-import { candidateStorage, positionStorage, voteStorage } from "@/lib/local-storage"
+import { candidateStorage, positionStorage, voteStorage } from "@/lib/supabase-db"
 import { UserPlus, Search, Trash2, Edit, Trophy, Users, Vote, Crown } from "lucide-react"
 
 interface Position {
   id: string
   name: string
   category: string
-  max_candidates: number
 }
 
 interface Candidate {
@@ -73,50 +72,23 @@ export default function CandidatesPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      const [positionsData, candidatesData, votes] = await Promise.all([
+        positionStorage.getAll(),
+        candidateStorage.getAll(),
+        voteStorage.getAll(),
+      ])
 
-      // Create mock positions if database fails
-      const mockPositions: Position[] = [
-        { id: "1", name: "Head Boy", category: "Senior Leadership", max_candidates: 5 },
-        { id: "2", name: "Head Girl", category: "Senior Leadership", max_candidates: 5 },
-        { id: "3", name: "Deputy Head Boy", category: "Senior Leadership", max_candidates: 3 },
-        { id: "4", name: "Deputy Head Girl", category: "Senior Leadership", max_candidates: 3 },
-        { id: "5", name: "Entertainment Prefect", category: "Entertainment", max_candidates: 3 },
-        { id: "6", name: "Sports Prefect", category: "Games and Sports", max_candidates: 3 },
-      ]
-
-      // Fetch positions from local storage
-      const positionsData = positionStorage.getAll()
-      if (positionsData.length === 0) {
-        // Create default positions if none exist
-        mockPositions.forEach((pos) => {
-          positionStorage.create({
-            name: pos.name,
-            description: `${pos.name} position`,
-            category: pos.category,
-            display_order: parseInt(pos.id),
-            is_active: true,
-          })
-        })
-        setPositions(mockPositions)
-      } else {
-        setPositions(
-          positionsData.map((p) => ({
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            max_candidates: 5,
-          })),
-        )
-      }
-
-      // Fetch candidates from local storage
-      const candidatesData = candidateStorage.getAll()
-      const votes = voteStorage.getAll()
+      setPositions(
+        positionsData.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+        })),
+      )
 
       const candidatesWithVotes = candidatesData.map((candidate) => {
         const position = positionsData.find((p) => p.id === candidate.position_id)
         const voteCount = votes.filter((v) => v.candidate_id === candidate.id).length
-
         return {
           ...candidate,
           position_name: position?.name || "Unknown Position",
@@ -124,14 +96,12 @@ export default function CandidatesPage() {
         }
       })
 
-      setCandidates(candidatesWithVotes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+      setCandidates(
+        candidatesWithVotes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      )
     } catch (error) {
-      console.error("Error fetching data:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch data",
-        variant: "destructive",
-      })
+      console.error("[v0] Error fetching candidates data:", error)
+      toast({ title: "Error", description: "Failed to fetch data", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -139,17 +109,13 @@ export default function CandidatesPage() {
 
   const addCandidate = async () => {
     if (!newCandidate.full_name || !newCandidate.student_id || !newCandidate.class || !newCandidate.position_id) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" })
       return
     }
 
     setSaving(true)
     try {
-      const candidateData = {
+      const saved = await candidateStorage.create({
         full_name: newCandidate.full_name,
         student_id: newCandidate.student_id,
         class: newCandidate.class,
@@ -161,48 +127,16 @@ export default function CandidatesPage() {
             .split(" ")
             .map((n) => n[0])
             .join("")}`,
-        created_at: new Date().toISOString(),
-      }
-
-      // Save to local storage
-      const savedCandidate = candidateStorage.create({
-        full_name: candidateData.full_name,
-        student_id: candidateData.student_id,
-        class: candidateData.class,
-        position_id: candidateData.position_id,
-        manifesto: candidateData.manifesto,
-        photo_url: candidateData.photo_url,
       })
 
       const position = positions.find((p) => p.id === newCandidate.position_id)
-      const newCandidateWithPosition: Candidate = {
-        ...savedCandidate,
-        position_name: position?.name || "Unknown Position",
-        vote_count: 0,
-      }
-
-      setCandidates((prev) => [newCandidateWithPosition, ...prev])
-      toast({
-        title: "Success",
-        description: "Candidate added successfully",
-      })
-
-      setNewCandidate({
-        full_name: "",
-        student_id: "",
-        class: "",
-        position_id: "",
-        manifesto: "",
-        photo_url: "",
-      })
+      setCandidates((prev) => [{ ...saved, position_name: position?.name || "Unknown Position", vote_count: 0 }, ...prev])
+      toast({ title: "Success", description: "Candidate added successfully" })
+      setNewCandidate({ full_name: "", student_id: "", class: "", position_id: "", manifesto: "", photo_url: "" })
       setShowAddDialog(false)
     } catch (error) {
-      console.error("Error adding candidate:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add candidate",
-        variant: "destructive",
-      })
+      console.error("[v0] Error adding candidate:", error)
+      toast({ title: "Error", description: "Failed to add candidate", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -210,11 +144,9 @@ export default function CandidatesPage() {
 
   const updateCandidate = async () => {
     if (!editingCandidate) return
-
     setSaving(true)
     try {
-      // Update in local storage
-      const updatedCandidate = candidateStorage.update(editingCandidate.id, {
+      const updated = await candidateStorage.update(editingCandidate.id, {
         full_name: editingCandidate.full_name,
         student_id: editingCandidate.student_id,
         class: editingCandidate.class,
@@ -223,7 +155,7 @@ export default function CandidatesPage() {
         photo_url: editingCandidate.photo_url,
       })
 
-      if (updatedCandidate) {
+      if (updated) {
         const position = positions.find((p) => p.id === editingCandidate.position_id)
         setCandidates((prev) =>
           prev.map((c) =>
@@ -232,26 +164,12 @@ export default function CandidatesPage() {
               : c,
           ),
         )
-        toast({
-          title: "Success",
-          description: "Candidate updated successfully",
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update candidate",
-          variant: "destructive",
-        })
+        toast({ title: "Success", description: "Candidate updated successfully" })
       }
-
       setEditingCandidate(null)
     } catch (error) {
-      console.error("Error updating candidate:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update candidate",
-        variant: "destructive",
-      })
+      console.error("[v0] Error updating candidate:", error)
+      toast({ title: "Error", description: "Failed to update candidate", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -260,28 +178,14 @@ export default function CandidatesPage() {
   const deleteCandidate = async (id: string) => {
     setSaving(true)
     try {
-      // Delete from local storage
-      const deleted = candidateStorage.delete(id)
+      const deleted = await candidateStorage.delete(id)
       if (deleted) {
         setCandidates((prev) => prev.filter((c) => c.id !== id))
-        toast({
-          title: "Success",
-          description: "Candidate deleted successfully",
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete candidate",
-          variant: "destructive",
-        })
+        toast({ title: "Success", description: "Candidate deleted successfully" })
       }
     } catch (error) {
-      console.error("Error deleting candidate:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete candidate",
-        variant: "destructive",
-      })
+      console.error("[v0] Error deleting candidate:", error)
+      toast({ title: "Error", description: "Failed to delete candidate", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -292,7 +196,6 @@ export default function CandidatesPage() {
       candidate.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       candidate.student_id.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPosition = positionFilter === "all" || candidate.position_id === positionFilter
-
     return matchesSearch && matchesPosition
   })
 
@@ -549,13 +452,12 @@ export default function CandidatesPage() {
                           <DialogHeader>
                             <DialogTitle>Edit Candidate</DialogTitle>
                           </DialogHeader>
-                          {editingCandidate && (
+                          {editingCandidate && editingCandidate.id === candidate.id && (
                             <div className="space-y-4">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <Label htmlFor="edit_full_name">Full Name</Label>
+                                  <Label>Full Name</Label>
                                   <Input
-                                    id="edit_full_name"
                                     value={editingCandidate.full_name}
                                     onChange={(e) =>
                                       setEditingCandidate((prev) =>
@@ -565,9 +467,8 @@ export default function CandidatesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <Label htmlFor="edit_student_id">Student ID</Label>
+                                  <Label>Student ID</Label>
                                   <Input
-                                    id="edit_student_id"
                                     value={editingCandidate.student_id}
                                     onChange={(e) =>
                                       setEditingCandidate((prev) =>
@@ -579,7 +480,7 @@ export default function CandidatesPage() {
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <Label htmlFor="edit_class">Class</Label>
+                                  <Label>Class</Label>
                                   <Select
                                     value={editingCandidate.class}
                                     onValueChange={(value) =>
@@ -599,7 +500,7 @@ export default function CandidatesPage() {
                                   </Select>
                                 </div>
                                 <div>
-                                  <Label htmlFor="edit_position">Position</Label>
+                                  <Label>Position</Label>
                                   <Select
                                     value={editingCandidate.position_id}
                                     onValueChange={(value) =>
@@ -610,9 +511,9 @@ export default function CandidatesPage() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {positions.map((position) => (
-                                        <SelectItem key={position.id} value={position.id}>
-                                          {position.name} ({position.category})
+                                      {positions.map((p) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                          {p.name}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -620,9 +521,8 @@ export default function CandidatesPage() {
                                 </div>
                               </div>
                               <div>
-                                <Label htmlFor="edit_photo_url">Photo URL</Label>
+                                <Label>Photo URL</Label>
                                 <Input
-                                  id="edit_photo_url"
                                   value={editingCandidate.photo_url || ""}
                                   onChange={(e) =>
                                     setEditingCandidate((prev) =>
@@ -632,9 +532,8 @@ export default function CandidatesPage() {
                                 />
                               </div>
                               <div>
-                                <Label htmlFor="edit_manifesto">Manifesto</Label>
+                                <Label>Manifesto</Label>
                                 <Textarea
-                                  id="edit_manifesto"
                                   value={editingCandidate.manifesto}
                                   onChange={(e) =>
                                     setEditingCandidate((prev) =>
@@ -645,16 +544,17 @@ export default function CandidatesPage() {
                                 />
                               </div>
                               <Button onClick={updateCandidate} className="w-full" disabled={saving}>
-                                {saving ? "Updating..." : "Update Candidate"}
+                                {saving ? "Saving..." : "Save Changes"}
                               </Button>
                             </div>
                           )}
                         </DialogContent>
                       </Dialog>
+
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="sm" disabled={saving}>
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -666,7 +566,12 @@ export default function CandidatesPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteCandidate(candidate.id)}>Delete</AlertDialogAction>
+                            <AlertDialogAction
+                              onClick={() => deleteCandidate(candidate.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -676,6 +581,14 @@ export default function CandidatesPage() {
               ))}
             </TableBody>
           </Table>
+
+          {filteredCandidates.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="text-lg font-medium">No candidates found</p>
+              <p className="text-sm">Add candidates using the button above</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

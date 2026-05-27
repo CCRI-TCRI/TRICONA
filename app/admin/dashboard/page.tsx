@@ -23,8 +23,9 @@ import {
   UserPlus,
   Tv,
   Zap,
+  Radio,
 } from "lucide-react"
-import { userStorage, candidateStorage, positionStorage, voteStorage, getPositionsWithCandidates } from "@/lib/local-storage"
+import { userStorage, candidateStorage, positionStorage, voteStorage, getPositionsWithCandidates } from "@/lib/supabase-db"
 
 interface DashboardStats {
   totalVoters: number
@@ -59,34 +60,11 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState<any[]>([])
 
   useEffect(() => {
-    // Ensure we're in the browser
-    if (typeof window === "undefined") return
-
-    // Initialize and load data
-    const initializeAndLoad = async () => {
-      try {
-        await loadData()
-      } catch (error) {
-        console.error("Error initializing dashboard:", error)
-        // Always set loading to false even on error
-        setLoading(false)
-      }
-    }
-
-    initializeAndLoad()
-
-    // Auto-refresh every 30 seconds
+    loadData()
     const interval = setInterval(() => {
-      if (typeof window !== "undefined") {
-        loadData().catch((error) => {
-          console.error("Error refreshing data:", error)
-        })
-      }
+      loadData().catch((e) => console.error("[v0] Auto-refresh error:", e))
     }, 30000)
-
-    return () => {
-      clearInterval(interval)
-    }
+    return () => clearInterval(interval)
   }, [])
 
   const loadData = async () => {
@@ -99,11 +77,6 @@ export default function AdminDashboard() {
     }, 5000)
 
     try {
-      // Check if localStorage is available
-      if (typeof window === "undefined" || !window.localStorage) {
-        throw new Error("LocalStorage not available")
-      }
-
       await Promise.all([loadStats(), loadPostResults(), loadRecentActivity()])
     } catch (error) {
       console.error("Error loading data:", error)
@@ -124,43 +97,27 @@ export default function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      if (typeof window === "undefined") return
-
-      const users = userStorage.getAll()
-      const candidates = candidateStorage.getAll()
-      const votes = voteStorage.getAll()
-
-      const totalVoters = users.length
-      const votedCount = users.filter((u) => u.has_voted).length
-      const totalCandidates = candidates.length
-      const totalVotes = votes.length
+      const [users, candidates, votes] = await Promise.all([
+        userStorage.getAll(),
+        candidateStorage.getAll(),
+        voteStorage.getAll(),
+      ])
 
       setStats({
-        totalVoters,
-        votedCount,
-        totalCandidates,
-        totalVotes,
+        totalVoters: users.length,
+        votedCount: users.filter((u) => u.has_voted).length,
+        totalCandidates: candidates.length,
+        totalVotes: votes.length,
       })
     } catch (error) {
-      console.error("Error loading stats:", error)
-      // Set default stats on error
-      setStats({
-        totalVoters: 0,
-        votedCount: 0,
-        totalCandidates: 0,
-        totalVotes: 0,
-      })
+      console.error("[v0] Error loading stats:", error)
+      setStats({ totalVoters: 0, votedCount: 0, totalCandidates: 0, totalVotes: 0 })
     }
   }
 
   const loadPostResults = async () => {
     try {
-      if (typeof window === "undefined") {
-        setPostResults([])
-        return
-      }
-
-      const positionsWithCandidates = getPositionsWithCandidates()
+      const positionsWithCandidates = await getPositionsWithCandidates()
 
       const results = positionsWithCandidates.map((position) => {
         const totalVotesForPosition = position.candidates.reduce((sum, c) => sum + c.vote_count, 0)
@@ -186,22 +143,19 @@ export default function AdminDashboard() {
 
       setPostResults(results)
     } catch (error) {
-      console.error("Error loading post results:", error)
+      console.error("[v0] Error loading post results:", error)
       setPostResults([])
     }
   }
 
   const loadRecentActivity = async () => {
     try {
-      if (typeof window === "undefined") {
-        setRecentActivity([])
-        return
-      }
-
-      const votes = voteStorage.getAll()
-      const users = userStorage.getAll()
-      const candidates = candidateStorage.getAll()
-      const positions = positionStorage.getAll()
+      const [votes, users, candidates, positions] = await Promise.all([
+        voteStorage.getAll(),
+        userStorage.getAll(),
+        candidateStorage.getAll(),
+        positionStorage.getAll(),
+      ])
 
       const recentVotes = votes
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -214,15 +168,15 @@ export default function AdminDashboard() {
 
         return {
           id: vote.id,
-          voter: user ? `Token ${user.token}` : "Unknown",
-          action: `voted for ${candidate?.full_name || "Unknown"} (${position?.name || "Unknown"})`,
+          voter: user ? `${user.full_name} (${user.student_id})` : "Unknown",
+          action: `voted for ${candidate?.full_name || "Unknown"} — ${position?.name || "Unknown"}`,
           time: new Date(vote.created_at).toLocaleString(),
         }
       })
 
       setRecentActivity(activity)
     } catch (error) {
-      console.error("Error loading recent activity:", error)
+      console.error("[v0] Error loading recent activity:", error)
       setRecentActivity([])
     }
   }
@@ -331,29 +285,23 @@ export default function AdminDashboard() {
         </div>
       </motion.div>
 
-      {/* Animated Live Results Button */}
+      {/* Broadcast Buttons */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.2 }}
-        className="flex justify-center"
+        className="flex flex-col sm:flex-row justify-center gap-4"
       >
+        {/* Live Results Broadcast */}
         <Link href="/admin/live-results" target="_blank">
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative overflow-hidden">
             <Button
               size="lg"
-              className="bg-gradient-to-r from-red-600 via-purple-600 to-blue-600 hover:from-red-700 hover:via-purple-700 hover:to-blue-700 text-white px-8 py-4 text-xl font-bold shadow-2xl border-0"
+              className="bg-gradient-to-r from-red-600 via-purple-600 to-blue-600 hover:from-red-700 hover:via-purple-700 hover:to-blue-700 text-white px-8 py-4 text-xl font-bold shadow-2xl border-0 w-full sm:w-auto"
             >
               <motion.div
-                animate={{
-                  rotate: [0, 360],
-                  scale: [1, 1.2, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Number.POSITIVE_INFINITY,
-                  ease: "easeInOut",
-                }}
+                animate={{ rotate: [0, 360], scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
                 className="mr-3"
               >
                 <Tv className="w-6 h-6" />
@@ -373,6 +321,31 @@ export default function AdminDashboard() {
               animate={{ x: [-100, 300] }}
               transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
               className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+            />
+          </motion.div>
+        </Link>
+
+        {/* CNN-Style Election Coverage */}
+        <Link href="/admin/election-coverage" target="_blank">
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative overflow-hidden">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-slate-900 via-gray-800 to-slate-900 hover:from-slate-800 hover:via-gray-700 hover:to-slate-800 text-white px-8 py-4 text-xl font-bold shadow-2xl border border-red-600/50 w-full sm:w-auto"
+            >
+              <motion.div
+                animate={{ opacity: [1, 0.4, 1] }}
+                transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY }}
+                className="mr-3 flex items-center"
+              >
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 mr-2" />
+                <Radio className="w-6 h-6 text-red-400" />
+              </motion.div>
+              <span>ELECTION COVERAGE</span>
+            </Button>
+            <motion.div
+              animate={{ x: [-100, 300] }}
+              transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY, ease: "linear", delay: 0.5 }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-red-500/10 to-transparent skew-x-12"
             />
           </motion.div>
         </Link>
