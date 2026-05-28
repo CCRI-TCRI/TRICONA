@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import {
   Users,
@@ -23,6 +23,10 @@ import {
   UserPlus,
   Tv,
   Zap,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Sparkles,
 } from "lucide-react"
 import { userStorage, candidateStorage, positionStorage, voteStorage, getPositionsWithCandidates } from "@/lib/local-storage"
 
@@ -47,6 +51,77 @@ interface PostResult {
   totalVotes: number
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.2,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" },
+  },
+}
+
+const StatCard = ({ title, value, icon: Icon, color, trend, delay = 0 }: any) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.5 }}
+    whileHover={{ y: -5 }}
+    className="group"
+  >
+    <Card className={`relative overflow-hidden border-0 shadow-lg bg-gradient-to-br ${color} text-white h-full`}>
+      <motion.div
+        className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-white transition-opacity"
+        animate={{ opacity: [0, 0.1, 0] }}
+        transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+      />
+      <CardContent className="p-6 relative z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white/80 text-sm font-medium mb-2">{title}</p>
+            <motion.p
+              className="text-4xl font-black"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: delay + 0.2, type: "spring", stiffness: 100 }}
+            >
+              {value}
+            </motion.p>
+            {trend && (
+              <motion.div
+                className="flex items-center mt-3 text-sm font-semibold gap-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: delay + 0.4 }}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>{trend}</span>
+              </motion.div>
+            )}
+          </div>
+          <motion.div
+            animate={{ rotate: 360, scale: [1, 1.1, 1] }}
+            transition={{ duration: 15, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            className="opacity-20"
+          >
+            <Icon className="w-16 h-16" />
+          </motion.div>
+        </div>
+      </CardContent>
+    </Card>
+  </motion.div>
+)
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalVoters: 0,
@@ -59,23 +134,16 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState<any[]>([])
 
   useEffect(() => {
-    // Ensure we're in the browser
     if (typeof window === "undefined") return
-
-    // Initialize and load data
     const initializeAndLoad = async () => {
       try {
         await loadData()
       } catch (error) {
         console.error("Error initializing dashboard:", error)
-        // Always set loading to false even on error
         setLoading(false)
       }
     }
-
     initializeAndLoad()
-
-    // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       if (typeof window !== "undefined") {
         loadData().catch((error) => {
@@ -83,31 +151,25 @@ export default function AdminDashboard() {
         })
       }
     }, 30000)
-
     return () => {
       clearInterval(interval)
     }
   }, [])
 
   const loadData = async () => {
-    // Safety timeout to prevent infinite loading
     const timeout = setTimeout(() => {
       if (loading) {
-        console.warn("Loading timeout - forcing loading state to false")
         setLoading(false)
       }
     }, 5000)
 
     try {
-      // Check if localStorage is available
       if (typeof window === "undefined" || !window.localStorage) {
         throw new Error("LocalStorage not available")
       }
-
       await Promise.all([loadStats(), loadPostResults(), loadRecentActivity()])
     } catch (error) {
       console.error("Error loading data:", error)
-      // Set default values on error
       setStats({
         totalVoters: 0,
         votedCount: 0,
@@ -125,16 +187,13 @@ export default function AdminDashboard() {
   const loadStats = async () => {
     try {
       if (typeof window === "undefined") return
-
       const users = userStorage.getAll()
       const candidates = candidateStorage.getAll()
       const votes = voteStorage.getAll()
-
       const totalVoters = users.length
       const votedCount = users.filter((u) => u.has_voted).length
       const totalCandidates = candidates.length
       const totalVotes = votes.length
-
       setStats({
         totalVoters,
         votedCount,
@@ -143,7 +202,6 @@ export default function AdminDashboard() {
       })
     } catch (error) {
       console.error("Error loading stats:", error)
-      // Set default stats on error
       setStats({
         totalVoters: 0,
         votedCount: 0,
@@ -159,12 +217,9 @@ export default function AdminDashboard() {
         setPostResults([])
         return
       }
-
       const positionsWithCandidates = getPositionsWithCandidates()
-
       const results = positionsWithCandidates.map((position) => {
         const totalVotesForPosition = position.candidates.reduce((sum, c) => sum + c.vote_count, 0)
-
         const candidates = position.candidates.map((candidate) => ({
           id: candidate.id,
           name: candidate.full_name,
@@ -174,7 +229,6 @@ export default function AdminDashboard() {
             candidate.vote_count === Math.max(...position.candidates.map((c) => c.vote_count), 0) &&
             candidate.vote_count > 0,
         }))
-
         return {
           postId: position.id,
           postTitle: position.name,
@@ -183,7 +237,6 @@ export default function AdminDashboard() {
           totalVotes: totalVotesForPosition,
         }
       })
-
       setPostResults(results)
     } catch (error) {
       console.error("Error loading post results:", error)
@@ -197,21 +250,17 @@ export default function AdminDashboard() {
         setRecentActivity([])
         return
       }
-
       const votes = voteStorage.getAll()
       const users = userStorage.getAll()
       const candidates = candidateStorage.getAll()
       const positions = positionStorage.getAll()
-
       const recentVotes = votes
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 10)
-
       const activity = recentVotes.map((vote) => {
         const user = users.find((u) => u.id === vote.user_id)
         const candidate = candidates.find((c) => c.id === vote.candidate_id)
         const position = positions.find((p) => p.id === vote.position_id)
-
         return {
           id: vote.id,
           voter: user ? `Token ${user.token}` : "Unknown",
@@ -219,7 +268,6 @@ export default function AdminDashboard() {
           time: new Date(vote.created_at).toLocaleString(),
         }
       })
-
       setRecentActivity(activity)
     } catch (error) {
       console.error("Error loading recent activity:", error)
@@ -255,123 +303,123 @@ export default function AdminDashboard() {
 
   const turnoutPercentage = stats.totalVoters > 0 ? Math.round((stats.votedCount / stats.totalVoters) * 100) : 0
 
-  const StatCard = ({ title, value, icon: Icon, color, trend, delay = 0 }: any) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      whileHover={{ scale: 1.02 }}
-    >
-      <Card className={`bg-gradient-to-br ${color} text-white border-0 shadow-lg`}>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-white/80 text-sm font-medium">{title}</p>
-              <motion.p
-                className="text-3xl font-bold"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: delay + 0.2 }}
-              >
-                {value}
-              </motion.p>
-              {trend && (
-                <div className="flex items-center mt-2 text-sm">
-                  <TrendingUp className="w-4 h-4 mr-1" />
-                  <span>{trend}</span>
-                </div>
-              )}
-            </div>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-              className="opacity-20"
-            >
-              <Icon className="w-12 h-12" />
-            </motion.div>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  )
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading dashboard...</p>
-          <p className="text-sm text-muted-foreground mt-2">If this takes too long, please refresh the page</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4"
+          />
+          <p className="text-lg font-semibold text-gray-800">Loading dashboard...</p>
+          <p className="text-sm text-gray-500 mt-2">Fetching election data</p>
+        </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-8">
+      {/* Header Section */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="relative"
       >
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
-          <p className="text-gray-600">Election management overview and real-time monitoring</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={loadData} variant="outline" className="flex items-center space-x-2 bg-transparent">
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh</span>
-          </Button>
-          <Badge variant="outline" className="px-3 py-1">
-            <Eye className="w-4 h-4 mr-1" />
-            Live Updates
-          </Badge>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 rounded-2xl blur-2xl" />
+        <div className="relative">
+          <div className="flex items-center justify-between">
+            <div>
+              <motion.h1
+                className="text-4xl font-black text-gray-900 mb-2"
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                Election Dashboard
+              </motion.h1>
+              <motion.p
+                className="text-gray-600 flex items-center gap-2"
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                Real-time monitoring and analytics
+              </motion.p>
+            </div>
+            <motion.div
+              className="flex gap-3"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Button
+                onClick={loadData}
+                variant="outline"
+                className="gap-2 font-semibold hover:bg-blue-50"
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <motion.div
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+              >
+                <Badge className="px-4 py-2 bg-green-500/10 text-green-700 border border-green-200 font-semibold">
+                  <Eye className="w-4 h-4 mr-2" />
+                  Live Updates
+                </Badge>
+              </motion.div>
+            </motion.div>
+          </div>
         </div>
       </motion.div>
 
-      {/* Animated Live Results Button - Compact */}
+      {/* Live Results Button */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.3 }}
         className="flex justify-center"
       >
         <Link href="/admin/live-results" target="_blank">
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative overflow-hidden">
             <Button
-              size="sm"
-              className="bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white px-4 py-2 text-sm font-semibold shadow-lg border-0"
+              size="lg"
+              className="bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white px-6 py-3 font-semibold shadow-xl"
             >
               <motion.div
-                animate={{
-                  rotate: [0, 360],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Number.POSITIVE_INFINITY,
-                  ease: "linear",
-                }}
+                animate={{ rotate: [0, 360] }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                 className="mr-2"
               >
-                <Tv className="w-4 h-4" />
+                <Tv className="w-5 h-5" />
               </motion.div>
-              <span className="relative">
-                Live Results
-              </span>
+              View Live Results
             </Button>
           </motion.div>
         </Link>
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <motion.div
+        className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         <StatCard
           title="Total Voters"
           value={stats.totalVoters.toLocaleString()}
           icon={Users}
-          color="from-blue-500 to-blue-600"
+          color="from-blue-500 to-cyan-600"
           trend="Registered students"
           delay={0}
         />
@@ -379,15 +427,15 @@ export default function AdminDashboard() {
           title="Voter Turnout"
           value={`${turnoutPercentage}%`}
           icon={TrendingUp}
-          color="from-green-500 to-green-600"
-          trend={`${stats.votedCount} students voted`}
+          color="from-green-500 to-emerald-600"
+          trend={`${stats.votedCount}/${stats.totalVoters} voted`}
           delay={0.1}
         />
         <StatCard
-          title="Candidates"
+          title="Total Candidates"
           value={stats.totalCandidates}
           icon={Trophy}
-          color="from-purple-500 to-purple-600"
+          color="from-purple-500 to-pink-600"
           trend="Running for office"
           delay={0.2}
         />
@@ -395,33 +443,52 @@ export default function AdminDashboard() {
           title="Total Votes"
           value={stats.totalVotes.toLocaleString()}
           icon={Vote}
-          color="from-orange-500 to-orange-600"
-          trend="Individual votes cast"
+          color="from-orange-500 to-red-600"
+          trend="Votes cast"
           delay={0.3}
         />
-      </div>
+      </motion.div>
 
-      {/* Turnout Progress */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              Election Participation
+      {/* Turnout Progress Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="border-0 shadow-lg overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}>
+                <BarChart3 className="w-6 h-6 text-blue-600" />
+              </motion.div>
+              Voter Participation
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-6">
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Voter Turnout Progress</span>
-                <Badge variant={turnoutPercentage > 50 ? "default" : "secondary"}>
-                  {stats.votedCount} / {stats.totalVoters} voters
-                </Badge>
+                <span className="text-sm font-semibold text-gray-700">Turnout Progress</span>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 font-bold text-base">
+                    {stats.votedCount} / {stats.totalVoters}
+                  </Badge>
+                </motion.div>
               </div>
-              <Progress value={turnoutPercentage} className="h-3" />
-              <p className="text-sm text-muted-foreground">
-                {turnoutPercentage}% of registered students have participated in the election
-              </p>
+              <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.6, duration: 0.8 }}>
+                <Progress value={turnoutPercentage} className="h-4" />
+              </motion.div>
+              <motion.p
+                className="text-sm text-gray-600 text-center font-medium"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.7 }}
+              >
+                {turnoutPercentage}% of registered students have participated
+              </motion.p>
             </div>
           </CardContent>
         </Card>
@@ -429,92 +496,114 @@ export default function AdminDashboard() {
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Election Results */}
+        {/* Live Election Results */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.5 }}
           className="lg:col-span-2"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Live Election Results</span>
-                <Badge variant="outline" className="px-3 py-1">
-                  <Eye className="w-4 h-4 mr-1" />
+          <Card className="border-0 shadow-lg overflow-hidden h-full">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-3">
+                  <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}>
+                    <CheckCircle2 className="w-6 h-6 text-purple-600" />
+                  </motion.div>
+                  Live Election Results
+                </CardTitle>
+                <Badge className="bg-purple-100 text-purple-700 border-purple-200 font-semibold">
+                  <Eye className="w-3 h-3 mr-1" />
                   Real-time
                 </Badge>
-              </CardTitle>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <div className="space-y-6">
-                {postResults.map((post, index) => (
-                  <motion.div
-                    key={post.postId}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + index * 0.1 }}
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div
-                      className={`flex items-center gap-3 mb-4 p-3 rounded-lg bg-gradient-to-r ${getCategoryColor(post.category)} text-white`}
+                {postResults.length > 0 ? (
+                  postResults.map((post, index) => (
+                    <motion.div
+                      key={post.postId}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 + index * 0.1 }}
+                      className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow"
                     >
-                      {getCategoryIcon(post.category)}
-                      <div>
-                        <h3 className="font-bold text-lg">{post.postTitle}</h3>
-                        <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                          {post.category}
-                        </Badge>
-                      </div>
-                      <div className="ml-auto text-right">
-                        <div className="text-2xl font-bold">{post.totalVotes}</div>
-                        <div className="text-sm opacity-90">votes</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {post.candidates.map((candidate, candidateIndex) => (
-                        <div
-                          key={candidate.id}
-                          className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                            candidate.isLeading
-                              ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300"
-                              : "bg-gray-50 border border-gray-200"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                candidate.isLeading
-                                  ? "bg-yellow-500 text-white"
-                                  : candidateIndex === 0
-                                    ? "bg-blue-500 text-white"
-                                    : candidateIndex === 1
-                                      ? "bg-gray-400 text-white"
-                                      : "bg-gray-300 text-gray-700"
-                              }`}
-                            >
-                              {candidateIndex + 1}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-900">{candidate.name}</div>
-                              <div className="text-sm text-gray-600">{candidate.votes} votes</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">{candidate.percentage}%</div>
-                            {candidate.isLeading && (
-                              <div className="text-xs text-yellow-600 font-medium flex items-center gap-1">
-                                <Trophy className="w-3 h-3" />
-                                Leading
-                              </div>
-                            )}
-                          </div>
+                      <div className={`flex items-center gap-3 p-4 bg-gradient-to-r ${getCategoryColor(post.category)} text-white`}>
+                        {getCategoryIcon(post.category)}
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg">{post.postTitle}</h3>
+                          <Badge className="mt-1 bg-white/20 text-white border-white/30">
+                            {post.category}
+                          </Badge>
                         </div>
-                      ))}
-                    </div>
+                        <motion.div
+                          className="text-right"
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                        >
+                          <div className="text-3xl font-black">{post.totalVotes}</div>
+                          <div className="text-sm opacity-90">votes</div>
+                        </motion.div>
+                      </div>
+
+                      <div className="p-4 space-y-3">
+                        {post.candidates.map((candidate, candidateIndex) => (
+                          <motion.div
+                            key={candidate.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.65 + index * 0.1 + candidateIndex * 0.05 }}
+                            className={`flex items-center justify-between p-4 rounded-lg transition-all ${
+                              candidate.isLeading ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300" : "bg-gray-50 border border-gray-200"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <motion.div
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                                  candidate.isLeading ? "bg-gradient-to-r from-yellow-400 to-orange-500" : candidateIndex === 0 ? "bg-blue-500" : candidateIndex === 1 ? "bg-gray-400" : "bg-gray-300"
+                                }`}
+                                animate={candidate.isLeading ? { scale: [1, 1.15, 1] } : {}}
+                                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                              >
+                                #{candidateIndex + 1}
+                              </motion.div>
+                              <div className="flex-1">
+                                <div className="font-semibold text-gray-900">{candidate.name}</div>
+                                <div className="text-sm text-gray-600">{candidate.votes} votes</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <motion.div
+                                className="text-2xl font-black text-gray-900"
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ delay: 0.7 + index * 0.1 + candidateIndex * 0.05, type: "spring" }}
+                              >
+                                {candidate.percentage}%
+                              </motion.div>
+                              {candidate.isLeading && (
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
+                                  className="flex items-center justify-end gap-1 mt-1"
+                                >
+                                  <Trophy className="w-4 h-4 text-yellow-600" />
+                                  <span className="text-xs font-bold text-yellow-600">Leading</span>
+                                </motion.div>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <p className="text-gray-500 font-medium">No results yet. Waiting for votes...</p>
                   </motion.div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -524,94 +613,79 @@ export default function AdminDashboard() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.7 }}
+          transition={{ delay: 0.6 }}
           className="space-y-6"
         >
           {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
+          <Card className="border-0 shadow-lg overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+              <CardTitle className="flex items-center gap-3">
+                <Activity className="w-5 h-5 text-blue-600" />
                 Quick Actions
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                asChild
-                className="w-full justify-start bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 border border-blue-200"
-              >
-                <a href="/admin/candidates">
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Add New Candidate
-                </a>
-              </Button>
-              <Button
-                asChild
-                className="w-full justify-start bg-green-500/10 hover:bg-green-500/20 text-green-700 border border-green-200"
-              >
-                <a href="/admin/positions">
-                  <Vote className="w-4 h-4 mr-2" />
-                  Manage Positions
-                </a>
-              </Button>
-              <Button
-                asChild
-                className="w-full justify-start bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 border border-purple-200"
-              >
-                <a href="/admin/voters">
-                  <Users className="w-4 h-4 mr-2" />
-                  Voter Management
-                </a>
-              </Button>
-              <Button
-                asChild
-                className="w-full justify-start bg-orange-500/10 hover:bg-orange-500/20 text-orange-700 border border-orange-200"
-              >
-                <a href="/admin/settings">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Election Schedule
-                </a>
-              </Button>
-              <Button
-                asChild
-                className="w-full justify-start bg-red-500/10 hover:bg-red-500/20 text-red-700 border border-red-200"
-              >
-                <a href="/admin/settings">
-                  <Settings className="w-4 h-4 mr-2" />
-                  System Settings
-                </a>
-              </Button>
+            <CardContent className="p-4 space-y-3">
+              {[
+                { href: "/admin/voters", label: "Manage Voters", icon: Users, color: "blue" },
+                { href: "/admin/candidates", label: "Add Candidates", icon: UserPlus, color: "green" },
+                { href: "/admin/results", label: "View Results", icon: BarChart3, color: "purple" },
+                { href: "/admin/settings", label: "Settings", icon: Settings, color: "orange" },
+              ].map((action, idx) => (
+                <motion.div
+                  key={action.href}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.7 + idx * 0.05 }}
+                  whileHover={{ x: 5 }}
+                >
+                  <Button asChild className={`w-full justify-start gap-3 bg-${action.color}-50 hover:bg-${action.color}-100 text-${action.color}-700 border border-${action.color}-200`}>
+                    <a href={action.href}>
+                      <action.icon className="w-4 h-4" />
+                      {action.label}
+                    </a>
+                  </Button>
+                </motion.div>
+              ))}
             </CardContent>
           </Card>
 
           {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
+          <Card className="border-0 shadow-lg overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+              <CardTitle className="flex items-center gap-3">
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}>
+                  <Clock className="w-5 h-5 text-green-600" />
+                </motion.div>
                 Recent Activity
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {recentActivity.map((activity, index) => (
-                  <motion.div
-                    key={activity.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.8 + index * 0.1 }}
-                    className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
-                  >
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.voter}</p>
-                      <p className="text-xs text-gray-600">{activity.action}</p>
-                    </div>
-                    <span className="text-xs text-gray-500">{activity.time}</span>
-                  </motion.div>
-                ))}
-                {recentActivity.length === 0 && (
-                  <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
+            <CardContent className="p-4">
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
+                    <motion.div
+                      key={activity.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.8 + index * 0.05 }}
+                      className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-100 hover:border-green-300 transition-colors"
+                    >
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                        className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{activity.voter}</p>
+                        <p className="text-xs text-gray-600 truncate">{activity.action}</p>
+                        <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-gray-500 text-center py-6">
+                    No recent activity
+                  </motion.p>
                 )}
               </div>
             </CardContent>
