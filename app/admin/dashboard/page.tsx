@@ -331,7 +331,7 @@ export default function AdminDashboard() {
         </div>
       </motion.div>
 
-      {/* Animated Live Results Button */}
+      {/* Animated Live Results Button - Compact */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -341,39 +341,26 @@ export default function AdminDashboard() {
         <Link href="/admin/live-results" target="_blank">
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative overflow-hidden">
             <Button
-              size="lg"
-              className="bg-gradient-to-r from-red-600 via-purple-600 to-blue-600 hover:from-red-700 hover:via-purple-700 hover:to-blue-700 text-white px-8 py-4 text-xl font-bold shadow-2xl border-0"
+              size="sm"
+              className="bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white px-4 py-2 text-sm font-semibold shadow-lg border-0"
             >
               <motion.div
                 animate={{
                   rotate: [0, 360],
-                  scale: [1, 1.2, 1],
                 }}
                 transition={{
                   duration: 2,
                   repeat: Number.POSITIVE_INFINITY,
-                  ease: "easeInOut",
+                  ease: "linear",
                 }}
-                className="mr-3"
+                className="mr-2"
               >
-                <Tv className="w-6 h-6" />
+                <Tv className="w-4 h-4" />
               </motion.div>
               <span className="relative">
-                LIVE RESULTS BROADCAST
-                <motion.div
-                  animate={{ opacity: [0, 1, 0] }}
-                  transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
-                  className="absolute -top-1 -right-1"
-                >
-                  <Zap className="w-4 h-4 text-yellow-300" />
-                </motion.div>
+                Live Results
               </span>
             </Button>
-            <motion.div
-              animate={{ x: [-100, 300] }}
-              transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
-            />
           </motion.div>
         </Link>
       </motion.div>
