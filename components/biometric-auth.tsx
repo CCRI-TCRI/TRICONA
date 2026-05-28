@@ -67,7 +67,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
 
     try {
       const token = tokenCode.toUpperCase().trim()
-      
+
       // Check if token is valid
       if (!token || token.length < 4) {
         setError("Please enter a valid voting token code.")
@@ -87,31 +87,22 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
         return
       }
 
-      // Check if user exists
+      // Get user from token
       let user = userStorage.getByToken(token)
-      
+
       if (!user) {
-        // Create new user if doesn't exist
-        if (!fullName.trim()) {
-          setError("Please enter your full name.")
-          toast.error("Full name required")
-          return
-        }
-        
-        user = userStorage.create({
-          token: token,
-          full_name: fullName.trim(),
-        })
-        toast.success(`Welcome, ${user.full_name}!`)
-      } else {
-        if (user.has_voted) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-          return
-        }
-        toast.success(`Welcome back, ${user.full_name}!`)
+        setError("This voting token is not registered. Please contact your election committee.")
+        toast.error("Token not registered")
+        return
       }
 
+      if (user.has_voted) {
+        setError("This voting token has already been used. Each token can only be used once.")
+        toast.error("Token already used")
+        return
+      }
+
+      toast.success(`Welcome, ${user.full_name}!`)
       onAuthSuccess(user.id)
     } catch (error) {
       console.error("Authentication error:", error)
@@ -209,11 +200,12 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                       <Input
                         id="tokenCode"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your voting token (e.g., VOTE001)"
+                        placeholder="Enter your voting token (e.g., VT001A)"
                         value={tokenCode}
                         onChange={(e) => setTokenCode(e.target.value.toUpperCase())}
-                        className="border-gray-300 focus:border-blue-500 pr-10 font-mono"
+                        className="border-gray-300 focus:border-blue-500 pr-10 font-mono text-lg tracking-widest"
                         required
+                        autoFocus
                       />
                       <Button
                         type="button"
@@ -225,22 +217,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-500">Format: VOTE001 - VOTE100</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-gray-700">
-                      Full Name <span className="text-gray-400">(if first time)</span>
-                    </Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="border-gray-300 focus:border-blue-500"
-                    />
-                    <p className="text-xs text-gray-500">Only required if this is your first time voting</p>
+                    <p className="text-xs text-gray-500">Your voting token was provided by the election committee</p>
                   </div>
 
                   {error && (
