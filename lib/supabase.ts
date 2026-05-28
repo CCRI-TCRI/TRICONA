@@ -1,9 +1,20 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create client safely - will work in demo mode if env vars missing
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
+
+// Helper function for better error messages
+export const getErrorMessage = (error: any): string => {
+  if (!error) return "Unknown error"
+  if (typeof error === "string") return error
+  if (error.message) return error.message
+  return JSON.stringify(error)
+}
 
 // Database types
 export interface User {

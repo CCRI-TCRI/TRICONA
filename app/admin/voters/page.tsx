@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase"
+import { supabase, getErrorMessage } from "@/lib/supabase"
 import {
   Users,
   UserPlus,
@@ -86,10 +86,15 @@ export default function VotersPage() {
   const fetchVoters = async () => {
     try {
       setLoading(true)
+
+      if (!supabase) {
+        throw new Error("Database not configured. Using demo data.")
+      }
+
       const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("Supabase error:", getErrorMessage(error))
         // Create mock data if database fails
         const mockVoters: Voter[] = [
           {
@@ -192,7 +197,7 @@ export default function VotersPage() {
       const { data, error } = await supabase.from("users").insert([voterData]).select()
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("Supabase error:", getErrorMessage(error))
         // Add to local state if database fails
         const mockVoter: Voter = {
           id: Date.now().toString(),
@@ -239,7 +244,7 @@ export default function VotersPage() {
         .eq("id", editingVoter.id)
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("Supabase error:", getErrorMessage(error))
         // Update local state if database fails
         setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
         toast({
@@ -274,7 +279,7 @@ export default function VotersPage() {
       const { error } = await supabase.from("users").delete().eq("id", id)
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("Supabase error:", getErrorMessage(error))
         // Remove from local state if database fails
         setVoters((prev) => prev.filter((v) => v.id !== id))
         toast({
@@ -307,7 +312,7 @@ export default function VotersPage() {
       const { error } = await supabase.from("users").update({ voting_code: newCode }).eq("id", voterId)
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("Supabase error:", getErrorMessage(error))
         // Update local state if database fails
         setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
         toast({
@@ -345,7 +350,7 @@ export default function VotersPage() {
       for (const update of updates) {
         const { error } = await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
         if (error) {
-          console.error("Supabase error:", error)
+          console.error("Supabase error:", getErrorMessage(error))
         }
       }
 
