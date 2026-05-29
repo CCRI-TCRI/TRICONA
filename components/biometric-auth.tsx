@@ -14,6 +14,17 @@ import { Camera, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } fr
 import { userStorage, tokenStorage } from "@/lib/local-storage"
 import { toast } from "sonner"
 
+interface VoterRecord {
+  id: string
+  student_id: string
+  full_name: string
+  class: string
+  voting_code: string
+  has_voted: boolean
+  created_at: string
+  voted_at?: string
+}
+
 interface BiometricAuthProps {
   onAuthSuccess: (studentId: string) => void
 }
@@ -66,43 +77,47 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
     setError("")
 
     try {
-      const token = tokenCode.toUpperCase().trim()
+      const code = tokenCode.toUpperCase().trim()
 
-      // Check if token is valid
-      if (!token || token.length < 4) {
-        setError("Please enter a valid voting token code.")
-        toast.error("Invalid token code")
+      // Check if code is valid
+      if (!code || code.length < 3) {
+        setError("Please enter a valid voting code.")
+        toast.error("Invalid voting code")
         return
       }
 
-      // Check if token is available
-      if (!tokenStorage.isAvailable(token)) {
-        if (tokenStorage.isUsed(token)) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-        } else {
-          setError("Invalid voting token. Please check your token code.")
-          toast.error("Invalid token")
-        }
+      // First, try to find voter in voter management data (localStorage)
+      const votersJSON = localStorage.getItem("election_voters")
+      const voters: VoterRecord[] = votersJSON ? JSON.parse(votersJSON) : []
+
+      const voter = voters.find((v) => v.voting_code === code)
+
+      if (!voter) {
+        setError("This voting code is not registered. Please check your code and try again.")
+        toast.error("Code not found")
         return
       }
 
-      // Get user from token
-      let user = userStorage.getByToken(token)
+      // Check if already voted
+      if (voter.has_voted) {
+        setError("This voting code has already been used. Each code can only be used once.")
+        toast.error("Already voted")
+        return
+      }
+
+      // Check if user already exists in system
+      let user = userStorage.getByToken(code)
 
       if (!user) {
-        setError("This voting token is not registered. Please contact your election committee.")
-        toast.error("Token not registered")
-        return
+        // Create new user from voter record
+        user = userStorage.create({
+          token: code,
+          full_name: voter.full_name,
+          class: voter.class,
+        })
       }
 
-      if (user.has_voted) {
-        setError("This voting token has already been used. Each token can only be used once.")
-        toast.error("Token already used")
-        return
-      }
-
-      toast.success(`Welcome, ${user.full_name}!`)
+      toast.success(`Welcome, ${voter.full_name}!`)
       onAuthSuccess(user.id)
     } catch (error) {
       console.error("Authentication error:", error)
