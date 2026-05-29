@@ -88,33 +88,12 @@ export default function VotersPage() {
     try {
       setLoading(true)
 
-      // If Supabase not configured, use mock data
+      // If Supabase not configured, show empty state
       if (!supabase || !isSupabaseConfigured()) {
-        const mockVoters: Voter[] = [
-          {
-            id: "1",
-            student_id: "LSS001",
-            full_name: "John Doe",
-            class: "S6A",
-            voting_code: "VT001A",
-            has_voted: true,
-            created_at: new Date().toISOString(),
-            voted_at: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            student_id: "LSS002",
-            full_name: "Jane Smith",
-            class: "S5B",
-            voting_code: "VT002B",
-            has_voted: false,
-            created_at: new Date().toISOString(),
-          },
-        ]
-        setVoters(mockVoters)
+        setVoters([])
         toast({
-          title: "Demo Mode Active",
-          description: "Supabase not configured. Using demo data. Connect to Supabase to use real database.",
+          title: "Database Not Configured",
+          description: "Connect to Supabase to start managing voters.",
           variant: "default",
         })
         setLoading(false)
@@ -125,41 +104,10 @@ export default function VotersPage() {
 
       if (error) {
         console.error("Supabase error:", getErrorMessage(error))
-        // Create mock data if database fails
-        const mockVoters: Voter[] = [
-          {
-            id: "1",
-            student_id: "LSS001",
-            full_name: "John Doe",
-            class: "S6A",
-            voting_code: "VT001A",
-            has_voted: true,
-            created_at: new Date().toISOString(),
-            voted_at: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            student_id: "LSS002",
-            full_name: "Jane Smith",
-            class: "S5B",
-            voting_code: "VT002B",
-            has_voted: false,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "3",
-            student_id: "DEMO123",
-            full_name: "Demo Student",
-            class: "S4A",
-            voting_code: "DEMO456",
-            has_voted: false,
-            created_at: new Date().toISOString(),
-          },
-        ]
-        setVoters(mockVoters)
+        setVoters([])
         toast({
-          title: "Demo Mode",
-          description: "Using demo data. Database connection failed.",
+          title: "Error",
+          description: "Failed to fetch voters from database.",
           variant: "destructive",
         })
       } else {
@@ -235,8 +183,9 @@ export default function VotersPage() {
         }
         setVoters((prev) => [mockVoter, ...prev])
         toast({
-          title: "Demo Mode",
-          description: "Voter added to demo data (not saved to database)",
+          title: "Error",
+          description: "Failed to save voter to database.",
+          variant: "destructive",
         })
       } else {
         setVoters((prev) => [data[0], ...prev])
@@ -278,8 +227,9 @@ export default function VotersPage() {
         // Update local state if database fails
         setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
         toast({
-          title: "Demo Mode",
-          description: "Voter updated in demo data",
+          title: "Error",
+          description: "Failed to update voter in database.",
+          variant: "destructive",
         })
       } else {
         setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
@@ -313,8 +263,9 @@ export default function VotersPage() {
         // Remove from local state if database fails
         setVoters((prev) => prev.filter((v) => v.id !== id))
         toast({
-          title: "Demo Mode",
-          description: "Voter removed from demo data",
+          title: "Error",
+          description: "Failed to remove voter from database.",
+          variant: "destructive",
         })
       } else {
         setVoters((prev) => prev.filter((v) => v.id !== id))
@@ -346,8 +297,9 @@ export default function VotersPage() {
         // Update local state if database fails
         setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
         toast({
-          title: "Demo Mode",
-          description: `Voting code updated in demo data: ${newCode}`,
+          title: "Error",
+          description: "Failed to reset voting code.",
+          variant: "destructive",
         })
       } else {
         setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
@@ -454,14 +406,14 @@ export default function VotersPage() {
   return (
     <div className="space-y-6">
       {!isSupabaseConfigured() && (
-        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
           <div className="flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-yellow-900">Demo Mode - Database Not Connected</h3>
-              <p className="text-sm text-yellow-800 mt-1">
-                Your Supabase credentials are not configured. The system is using demo data.
-                To connect a real database for production use, click "Browse Integrations" to connect Supabase.
+              <h3 className="font-semibold text-red-900">Database Not Connected</h3>
+              <p className="text-sm text-red-800 mt-1">
+                No database is configured. To manage voters, you must connect to Supabase.
+                Click "Browse Integrations" to set up your database connection.
               </p>
             </div>
           </div>
