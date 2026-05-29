@@ -21,22 +21,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
-import { supabase, getErrorMessage } from "@/lib/supabase"
+import { supabase, getErrorMessage, isSupabaseConfigured } from "@/lib/supabase"
 import {
-  Users,
-  UserPlus,
-  Search,
-  Download,
-  Trash2,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  BarChart3,
-  CheckCircle,
-  Clock,
-  Key,
-  Edit,
-} from "lucide-react"
+    Users,
+    UserPlus,
+    Search,
+    Download,
+    Trash2,
+    Eye,
+    EyeOff,
+    RefreshCw,
+    BarChart3,
+    CheckCircle,
+    Clock,
+    Key,
+    Edit,
+    AlertTriangle,
+  } from "lucide-react"
 
 interface Voter {
   id: string
@@ -87,8 +88,37 @@ export default function VotersPage() {
     try {
       setLoading(true)
 
-      if (!supabase) {
-        throw new Error("Database not configured. Using demo data.")
+      // If Supabase not configured, use mock data
+      if (!supabase || !isSupabaseConfigured()) {
+        const mockVoters: Voter[] = [
+          {
+            id: "1",
+            student_id: "LSS001",
+            full_name: "John Doe",
+            class: "S6A",
+            voting_code: "VT001A",
+            has_voted: true,
+            created_at: new Date().toISOString(),
+            voted_at: new Date().toISOString(),
+          },
+          {
+            id: "2",
+            student_id: "LSS002",
+            full_name: "Jane Smith",
+            class: "S5B",
+            voting_code: "VT002B",
+            has_voted: false,
+            created_at: new Date().toISOString(),
+          },
+        ]
+        setVoters(mockVoters)
+        toast({
+          title: "Demo Mode Active",
+          description: "Supabase not configured. Using demo data. Connect to Supabase to use real database.",
+          variant: "default",
+        })
+        setLoading(false)
+        return
       }
 
       const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
@@ -423,6 +453,21 @@ export default function VotersPage() {
 
   return (
     <div className="space-y-6">
+      {!isSupabaseConfigured() && (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-yellow-900">Demo Mode - Database Not Connected</h3>
+              <p className="text-sm text-yellow-800 mt-1">
+                Your Supabase credentials are not configured. The system is using demo data.
+                To connect a real database for production use, click "Browse Integrations" to connect Supabase.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Voter Management</h1>
