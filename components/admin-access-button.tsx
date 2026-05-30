@@ -82,9 +82,9 @@ export function AdminAccessButton() {
             </div>
             {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
             <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-              <p>Default credentials:</p>
+              <p>Admin credentials:</p>
               <p>Username: <strong>admin</strong></p>
-              <p>Password: <strong>admin123</strong></p>
+              <p>Password: <strong>Lavender</strong></p>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Logging in..." : "Access Admin Panel"}

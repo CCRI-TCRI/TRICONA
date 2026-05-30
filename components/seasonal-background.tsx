@@ -33,22 +33,8 @@ export function SeasonalBackground({ theme }: SeasonalBackgroundProps) {
   }, [theme])
 
   const getBackgroundClass = () => {
-    switch (theme) {
-      case "fourth-of-july":
-        return "bg-gradient-to-br from-red-900 via-blue-900 to-red-800"
-      case "halloween":
-        return "bg-gradient-to-br from-orange-900 via-black to-purple-900"
-      case "christmas":
-        return "bg-gradient-to-br from-red-900 via-green-900 to-red-800"
-      case "newyear":
-        return "bg-gradient-to-br from-purple-900 via-blue-900 to-yellow-900"
-      case "valentine":
-        return "bg-gradient-to-br from-pink-900 via-red-900 to-pink-800"
-      case "pride":
-        return "bg-gradient-to-br from-red-500 via-yellow-500 via-green-500 via-blue-500 via-indigo-500 to-purple-500"
-      default:
-        return "bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900"
-    }
+    // Professional white and light gray theme for all occasions
+    return "bg-gradient-to-br from-white via-blue-50 to-gray-100"
   }
 
   return (

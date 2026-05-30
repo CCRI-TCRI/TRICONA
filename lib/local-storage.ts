@@ -69,7 +69,7 @@ function initializeDefaultData() {
     if (!localStorage.getItem(STORAGE_KEYS.ADMIN_CREDENTIALS)) {
       const adminCredentials = {
         username: "admin",
-        password: "admin123",
+        password: "Lavender",
       }
       localStorage.setItem(STORAGE_KEYS.ADMIN_CREDENTIALS, JSON.stringify(adminCredentials))
     }
