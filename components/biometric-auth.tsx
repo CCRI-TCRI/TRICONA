@@ -90,6 +90,10 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
       const votersJSON = localStorage.getItem("election_voters")
       const voters: VoterRecord[] = votersJSON ? JSON.parse(votersJSON) : []
 
+      console.log("Looking for code:", code)
+      console.log("Available voters from localStorage:", voters)
+      console.log("Available codes:", voters.map(v => v.voting_code))
+
       const voter = voters.find((v) => v.voting_code === code)
 
       if (!voter) {

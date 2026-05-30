@@ -96,16 +96,22 @@ export default function VotersPage() {
           console.error("Supabase error:", getErrorMessage(error))
           // Fall back to localStorage on error
           const localVoters = localStorage.getItem("election_voters")
-          setVoters(localVoters ? JSON.parse(localVoters) : [])
+          const parsed = localVoters ? JSON.parse(localVoters) : []
+          setVoters(parsed)
+          console.log("Loaded voters from localStorage:", parsed)
         } else {
-          setVoters(data || [])
+          const voterData = data || []
+          setVoters(voterData)
           // Sync to localStorage
-          localStorage.setItem("election_voters", JSON.stringify(data || []))
+          localStorage.setItem("election_voters", JSON.stringify(voterData))
+          console.log("Loaded voters from Supabase and synced to localStorage:", voterData)
         }
       } else {
         // Use localStorage if Supabase not configured
         const localVoters = localStorage.getItem("election_voters")
-        setVoters(localVoters ? JSON.parse(localVoters) : [])
+        const parsed = localVoters ? JSON.parse(localVoters) : []
+        setVoters(parsed)
+        console.log("Loaded voters from localStorage (Supabase not configured):", parsed)
       }
     } catch (error) {
       console.error("Error fetching voters:", error)
@@ -174,11 +180,9 @@ export default function VotersPage() {
         }
       }
 
-      // Update local state
-      setVoters((prev) => [newVoterRecord, ...prev])
-
-      // Sync to localStorage
+      // Update local state and localStorage together
       const updated = [newVoterRecord, ...voters]
+      setVoters(updated)
       localStorage.setItem("election_voters", JSON.stringify(updated))
 
       toast({
