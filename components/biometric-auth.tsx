@@ -14,6 +14,17 @@ import { Camera, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } fr
 import { userStorage, tokenStorage } from "@/lib/local-storage"
 import { toast } from "sonner"
 
+interface VoterRecord {
+  id: string
+  student_id: string
+  full_name: string
+  class: string
+  voting_code: string
+  has_voted: boolean
+  created_at: string
+  voted_at?: string
+}
+
 interface BiometricAuthProps {
   onAuthSuccess: (studentId: string) => void
 }
@@ -66,52 +77,51 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
     setError("")
 
     try {
-      const token = tokenCode.toUpperCase().trim()
-      
-      // Check if token is valid
-      if (!token || token.length < 4) {
-        setError("Please enter a valid voting token code.")
-        toast.error("Invalid token code")
+      const code = tokenCode.toUpperCase().trim()
+
+      // Check if code is valid
+      if (!code || code.length < 3) {
+        setError("Please enter a valid voting code.")
+        toast.error("Invalid voting code")
         return
       }
 
-      // Check if token is available
-      if (!tokenStorage.isAvailable(token)) {
-        if (tokenStorage.isUsed(token)) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-        } else {
-          setError("Invalid voting token. Please check your token code.")
-          toast.error("Invalid token")
-        }
+      // First, try to find voter in voter management data (localStorage)
+      const votersJSON = localStorage.getItem("election_voters")
+      const voters: VoterRecord[] = votersJSON ? JSON.parse(votersJSON) : []
+
+      console.log("Looking for code:", code)
+      console.log("Available voters from localStorage:", voters)
+      console.log("Available codes:", voters.map(v => v.voting_code))
+
+      const voter = voters.find((v) => v.voting_code === code)
+
+      if (!voter) {
+        setError("This voting code is not registered. Please check your code and try again.")
+        toast.error("Code not found")
         return
       }
 
-      // Check if user exists
-      let user = userStorage.getByToken(token)
-      
+      // Check if already voted
+      if (voter.has_voted) {
+        setError("This voting code has already been used. Each code can only be used once.")
+        toast.error("Already voted")
+        return
+      }
+
+      // Check if user already exists in system
+      let user = userStorage.getByToken(code)
+
       if (!user) {
-        // Create new user if doesn't exist
-        if (!fullName.trim()) {
-          setError("Please enter your full name.")
-          toast.error("Full name required")
-          return
-        }
-        
+        // Create new user from voter record
         user = userStorage.create({
-          token: token,
-          full_name: fullName.trim(),
+          token: code,
+          full_name: voter.full_name,
+          class: voter.class,
         })
-        toast.success(`Welcome, ${user.full_name}!`)
-      } else {
-        if (user.has_voted) {
-          setError("This voting token has already been used. Each token can only be used once.")
-          toast.error("Token already used")
-          return
-        }
-        toast.success(`Welcome back, ${user.full_name}!`)
       }
 
+      toast.success(`Welcome, ${voter.full_name}!`)
       onAuthSuccess(user.id)
     } catch (error) {
       console.error("Authentication error:", error)
@@ -209,11 +219,12 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                       <Input
                         id="tokenCode"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your voting token (e.g., VOTE001)"
+                        placeholder="Enter your voting token (e.g., VT001A)"
                         value={tokenCode}
                         onChange={(e) => setTokenCode(e.target.value.toUpperCase())}
-                        className="border-gray-300 focus:border-blue-500 pr-10 font-mono"
+                        className="border-gray-300 focus:border-blue-500 pr-10 font-mono text-lg tracking-widest"
                         required
+                        autoFocus
                       />
                       <Button
                         type="button"
@@ -225,22 +236,7 @@ export function BiometricAuth({ onAuthSuccess }: BiometricAuthProps) {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-500">Format: VOTE001 - VOTE100</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-gray-700">
-                      Full Name <span className="text-gray-400">(if first time)</span>
-                    </Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="border-gray-300 focus:border-blue-500"
-                    />
-                    <p className="text-xs text-gray-500">Only required if this is your first time voting</p>
+                    <p className="text-xs text-gray-500">Your voting token was provided by the election committee</p>
                   </div>
 
                   {error && (

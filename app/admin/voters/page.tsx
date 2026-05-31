@@ -21,22 +21,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase"
+import { supabase, getErrorMessage, isSupabaseConfigured } from "@/lib/supabase"
 import {
-  Users,
-  UserPlus,
-  Search,
-  Download,
-  Trash2,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  BarChart3,
-  CheckCircle,
-  Clock,
-  Key,
-  Edit,
-} from "lucide-react"
+    Users,
+    UserPlus,
+    Search,
+    Download,
+    Trash2,
+    Eye,
+    EyeOff,
+    RefreshCw,
+    BarChart3,
+    CheckCircle,
+    Clock,
+    Key,
+    Edit,
+    AlertTriangle,
+  } from "lucide-react"
 
 interface Voter {
   id: string
@@ -86,57 +87,37 @@ export default function VotersPage() {
   const fetchVoters = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Create mock data if database fails
-        const mockVoters: Voter[] = [
-          {
-            id: "1",
-            student_id: "LSS001",
-            full_name: "John Doe",
-            class: "S6A",
-            voting_code: "VT001A",
-            has_voted: true,
-            created_at: new Date().toISOString(),
-            voted_at: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            student_id: "LSS002",
-            full_name: "Jane Smith",
-            class: "S5B",
-            voting_code: "VT002B",
-            has_voted: false,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "3",
-            student_id: "DEMO123",
-            full_name: "Demo Student",
-            class: "S4A",
-            voting_code: "DEMO456",
-            has_voted: false,
-            created_at: new Date().toISOString(),
-          },
-        ]
-        setVoters(mockVoters)
-        toast({
-          title: "Demo Mode",
-          description: "Using demo data. Database connection failed.",
-          variant: "destructive",
-        })
+      // Try Supabase first if configured
+      if (supabase && isSupabaseConfigured()) {
+        const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Supabase error:", getErrorMessage(error))
+          // Fall back to localStorage on error
+          const localVoters = localStorage.getItem("election_voters")
+          const parsed = localVoters ? JSON.parse(localVoters) : []
+          setVoters(parsed)
+          console.log("Loaded voters from localStorage:", parsed)
+        } else {
+          const voterData = data || []
+          setVoters(voterData)
+          // Sync to localStorage
+          localStorage.setItem("election_voters", JSON.stringify(voterData))
+          console.log("Loaded voters from Supabase and synced to localStorage:", voterData)
+        }
       } else {
-        setVoters(data || [])
+        // Use localStorage if Supabase not configured
+        const localVoters = localStorage.getItem("election_voters")
+        const parsed = localVoters ? JSON.parse(localVoters) : []
+        setVoters(parsed)
+        console.log("Loaded voters from localStorage (Supabase not configured):", parsed)
       }
     } catch (error) {
       console.error("Error fetching voters:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch voters",
-        variant: "destructive",
-      })
+      // Fall back to localStorage
+      const localVoters = localStorage.getItem("election_voters")
+      setVoters(localVoters ? JSON.parse(localVoters) : [])
     } finally {
       setLoading(false)
     }
@@ -188,28 +169,26 @@ export default function VotersPage() {
         created_at: new Date().toISOString(),
       }
 
-      // Try to save to Supabase
-      const { data, error } = await supabase.from("users").insert([voterData]).select()
+      let newVoterRecord = { id: Date.now().toString(), ...voterData }
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Add to local state if database fails
-        const mockVoter: Voter = {
-          id: Date.now().toString(),
-          ...voterData,
+      // Try to save to Supabase if configured
+      if (supabase && isSupabaseConfigured()) {
+        const { data, error } = await supabase.from("users").insert([voterData]).select()
+
+        if (!error && data) {
+          newVoterRecord = data[0]
         }
-        setVoters((prev) => [mockVoter, ...prev])
-        toast({
-          title: "Demo Mode",
-          description: "Voter added to demo data (not saved to database)",
-        })
-      } else {
-        setVoters((prev) => [data[0], ...prev])
-        toast({
-          title: "Success",
-          description: `Voter added successfully. Voting code: ${votingCode}`,
-        })
       }
+
+      // Update local state and localStorage together
+      const updated = [newVoterRecord, ...voters]
+      setVoters(updated)
+      localStorage.setItem("election_voters", JSON.stringify(updated))
+
+      toast({
+        title: "Success",
+        description: `Voter added successfully. Voting code: ${votingCode}`,
+      })
 
       setNewVoter({ student_id: "", full_name: "", class: "" })
       setShowAddDialog(false)
@@ -230,29 +209,31 @@ export default function VotersPage() {
 
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          full_name: editingVoter.full_name,
-          class: editingVoter.class,
-        })
-        .eq("id", editingVoter.id)
+      // Try to update in Supabase if configured
+      if (supabase && isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from("users")
+          .update({
+            full_name: editingVoter.full_name,
+            class: editingVoter.class,
+          })
+          .eq("id", editingVoter.id)
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Update local state if database fails
-        setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
-        toast({
-          title: "Demo Mode",
-          description: "Voter updated in demo data",
-        })
-      } else {
-        setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
-        toast({
-          title: "Success",
-          description: "Voter updated successfully",
-        })
+        if (error) {
+          console.error("Supabase error:", getErrorMessage(error))
+        }
       }
+
+      // Update local state
+      setVoters((prev) => prev.map((v) => (v.id === editingVoter.id ? editingVoter : v)))
+
+      // Sync to localStorage
+      localStorage.setItem("election_voters", JSON.stringify(voters.map((v) => (v.id === editingVoter.id ? editingVoter : v))))
+
+      toast({
+        title: "Success",
+        description: "Voter updated successfully",
+      })
 
       setEditingVoter(null)
       setShowEditDialog(false)
@@ -271,23 +252,26 @@ export default function VotersPage() {
   const deleteVoter = async (id: string) => {
     setSaving(true)
     try {
-      const { error } = await supabase.from("users").delete().eq("id", id)
+      // Try to delete from Supabase if configured
+      if (supabase && isSupabaseConfigured()) {
+        const { error } = await supabase.from("users").delete().eq("id", id)
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Remove from local state if database fails
-        setVoters((prev) => prev.filter((v) => v.id !== id))
-        toast({
-          title: "Demo Mode",
-          description: "Voter removed from demo data",
-        })
-      } else {
-        setVoters((prev) => prev.filter((v) => v.id !== id))
-        toast({
-          title: "Success",
-          description: "Voter deleted successfully",
-        })
+        if (error) {
+          console.error("Supabase error:", getErrorMessage(error))
+        }
       }
+
+      // Update local state
+      const updated = voters.filter((v) => v.id !== id)
+      setVoters(updated)
+
+      // Sync to localStorage
+      localStorage.setItem("election_voters", JSON.stringify(updated))
+
+      toast({
+        title: "Success",
+        description: "Voter deleted successfully",
+      })
     } catch (error) {
       console.error("Error deleting voter:", error)
       toast({
@@ -304,23 +288,27 @@ export default function VotersPage() {
     setSaving(true)
     try {
       const newCode = generateVotingCode()
-      const { error } = await supabase.from("users").update({ voting_code: newCode }).eq("id", voterId)
 
-      if (error) {
-        console.error("Supabase error:", error)
-        // Update local state if database fails
-        setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
-        toast({
-          title: "Demo Mode",
-          description: `Voting code updated in demo data: ${newCode}`,
-        })
-      } else {
-        setVoters((prev) => prev.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v)))
-        toast({
-          title: "Success",
-          description: `Voting code reset successfully: ${newCode}`,
-        })
+      // Try to update in Supabase if configured
+      if (supabase && isSupabaseConfigured()) {
+        const { error } = await supabase.from("users").update({ voting_code: newCode }).eq("id", voterId)
+
+        if (error) {
+          console.error("Supabase error:", getErrorMessage(error))
+        }
       }
+
+      // Update local state
+      const updated = voters.map((v) => (v.id === voterId ? { ...v, voting_code: newCode } : v))
+      setVoters(updated)
+
+      // Sync to localStorage
+      localStorage.setItem("election_voters", JSON.stringify(updated))
+
+      toast({
+        title: "Success",
+        description: `Voting code reset successfully: ${newCode}`,
+      })
     } catch (error) {
       console.error("Error resetting code:", error)
       toast({
@@ -341,15 +329,21 @@ export default function VotersPage() {
         voting_code: generateVotingCode(),
       }))
 
-      // Try to update in Supabase
-      for (const update of updates) {
-        const { error } = await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
-        if (error) {
-          console.error("Supabase error:", error)
+      // Try to update in Supabase if configured
+      if (supabase && isSupabaseConfigured()) {
+        for (const update of updates) {
+          const { error } = await supabase.from("users").update({ voting_code: update.voting_code }).eq("id", update.id)
+          if (error) {
+            console.error("Supabase error:", getErrorMessage(error))
+          }
         }
       }
 
       setVoters(updates)
+
+      // Sync to localStorage
+      localStorage.setItem("election_voters", JSON.stringify(updates))
+
       toast({
         title: "Success",
         description: "All voting codes regenerated",
@@ -418,6 +412,21 @@ export default function VotersPage() {
 
   return (
     <div className="space-y-6">
+      {!isSupabaseConfigured() && (
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-blue-900">Local Storage Mode</h3>
+              <p className="text-sm text-blue-800 mt-1">
+                Data is saved locally. To sync with Supabase and support 4000+ students,
+                click "Browse Integrations" to connect your database.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Voter Management</h1>

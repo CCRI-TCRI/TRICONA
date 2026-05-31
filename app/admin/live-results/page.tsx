@@ -3,32 +3,31 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getPositionsWithCandidates, voteStorage, userStorage } from "@/lib/local-storage"
-import { Trophy, Users, TrendingUp, Crown } from "lucide-react"
+import { Activity, TrendingUp, Users, Clock, Zap } from "lucide-react"
 
 interface LiveResultData {
   position_name: string
   category: string
-  candidates: {
-    id: string
-    full_name: string
-    photo_url?: string
-    vote_count: number
-    percentage: number
-  }[]
+  candidate_count: number
   total_votes: number
 }
 
 export default function LiveResultsPage() {
   const [results, setResults] = useState<LiveResultData[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [totalVotes, setTotalVotes] = useState(0)
-  const [turnout, setTurnout] = useState(0)
+  const [analytics, setAnalytics] = useState({
+    totalVotes: 0,
+    turnout: 0,
+    totalVoters: 0,
+    votedCount: 0,
+    totalPositions: 0,
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (typeof window === "undefined") return
     fetchResults()
-    const interval = setInterval(fetchResults, 3000) // Refresh every 3 seconds
+    const interval = setInterval(fetchResults, 3000)
     return () => clearInterval(interval)
   }, [])
 
@@ -36,7 +35,7 @@ export default function LiveResultsPage() {
     if (results.length > 0) {
       const interval = setInterval(() => {
         setCurrentIndex((prev) => (prev + 1) % results.length)
-      }, 8000) // Change position every 8 seconds
+      }, 8000)
       return () => clearInterval(interval)
     }
   }, [results.length])
@@ -53,19 +52,10 @@ export default function LiveResultsPage() {
         const positionVotes = votes.filter((v) => v.position_id === position.id)
         const totalVotesForPosition = positionVotes.length
 
-        const candidatesWithVotes = position.candidates.map((candidate) => {
-          const candidateVotes = votes.filter((v) => v.candidate_id === candidate.id).length
-          return {
-            ...candidate,
-            vote_count: candidateVotes,
-            percentage: totalVotesForPosition > 0 ? (candidateVotes / totalVotesForPosition) * 100 : 0,
-          }
-        })
-
         return {
           position_name: position.name,
           category: position.category,
-          candidates: candidatesWithVotes.sort((a, b) => b.vote_count - a.vote_count),
+          candidate_count: position.candidates.length,
           total_votes: totalVotesForPosition,
         }
       })
@@ -75,8 +65,13 @@ export default function LiveResultsPage() {
       const votedCount = users.filter((u) => u.has_voted).length
 
       setResults(resultsData)
-      setTotalVotes(totalVotesCount)
-      setTurnout(totalVotersCount > 0 ? (votedCount / totalVotersCount) * 100 : 0)
+      setAnalytics({
+        totalVotes: totalVotesCount,
+        turnout: totalVotersCount > 0 ? (votedCount / totalVotersCount) * 100 : 0,
+        totalVoters: totalVotersCount,
+        votedCount,
+        totalPositions: resultsData.length,
+      })
     } catch (error) {
       console.error("Error fetching results:", error)
     } finally {
@@ -87,57 +82,98 @@ export default function LiveResultsPage() {
   if (loading || results.length === 0) {
     return (
       <div className="fixed inset-0 bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-2xl font-bold text-gray-800">Loading Live Results...</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4"
+          />
+          <p className="text-2xl font-bold text-gray-800">Loading Election Coverage</p>
+          <p className="text-gray-500 mt-2">Gathering live data...</p>
+        </motion.div>
       </div>
     )
   }
 
   const currentPosition = results[currentIndex]
+  const timeUntilNext = 8 - (Math.floor((Date.now() / 1000) % 8))
 
   return (
-    <div className="fixed inset-0 bg-white overflow-hidden">
+    <div className="fixed inset-0 bg-white overflow-hidden flex flex-col">
       {/* Header */}
       <motion.div
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg"
+        className="bg-gradient-to-r from-white via-blue-50 to-white border-b-2 border-blue-200 px-8 py-6"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">LUBIRI SECONDARY SCHOOL</h1>
-            <p className="text-xl opacity-90">Live Election Results</p>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold">{totalVotes}</div>
-            <div className="text-lg opacity-90">Total Votes</div>
-          </div>
-        </div>
-      </motion.div>
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-between"
+          >
+            <div>
+              <h1 className="text-5xl font-black text-blue-900 tracking-tight">ELECTION COVERAGE</h1>
+              <p className="text-lg text-blue-600 font-semibold mt-1">Lubiri Secondary School • Live Participation Update</p>
+            </div>
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-lg font-bold text-gray-800">LIVE</span>
+            </motion.div>
+          </motion.div>
 
-      {/* Stats Bar */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-100 p-4 border-b">
-        <div className="max-w-7xl mx-auto flex items-center justify-center space-x-12">
-          <div className="flex items-center space-x-2">
-            <Users className="w-6 h-6 text-blue-600" />
-            <span className="text-lg font-semibold">Turnout: {turnout.toFixed(1)}%</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <TrendingUp className="w-6 h-6 text-green-600" />
-            <span className="text-lg font-semibold">Live Updates</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Trophy className="w-6 h-6 text-yellow-600" />
-            <span className="text-lg font-semibold">{results.length} Positions</span>
-          </div>
+          {/* Analytics Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid grid-cols-5 gap-4 mt-6"
+          >
+            <div className="bg-white rounded-lg border-2 border-blue-100 p-4">
+              <p className="text-blue-600 text-xs font-bold uppercase">Votes Recorded</p>
+              <motion.p className="text-4xl font-black text-gray-900 mt-2" initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                {analytics.totalVotes.toLocaleString()}
+              </motion.p>
+            </div>
+            <div className="bg-white rounded-lg border-2 border-green-100 p-4">
+              <p className="text-green-600 text-xs font-bold uppercase">Participation</p>
+              <motion.p className="text-4xl font-black text-gray-900 mt-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.1 }}>
+                {analytics.turnout.toFixed(1)}%
+              </motion.p>
+            </div>
+            <div className="bg-white rounded-lg border-2 border-purple-100 p-4">
+              <p className="text-purple-600 text-xs font-bold uppercase">Students Voted</p>
+              <motion.p className="text-4xl font-black text-gray-900 mt-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }}>
+                {analytics.votedCount}/{analytics.totalVoters}
+              </motion.p>
+            </div>
+            <div className="bg-white rounded-lg border-2 border-orange-100 p-4">
+              <p className="text-orange-600 text-xs font-bold uppercase">Positions</p>
+              <motion.p className="text-4xl font-black text-gray-900 mt-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3 }}>
+                {analytics.totalPositions}
+              </motion.p>
+            </div>
+            <div className="bg-white rounded-lg border-2 border-pink-100 p-4">
+              <p className="text-pink-600 text-xs font-bold uppercase">Status</p>
+              <motion.p className="text-2xl font-black text-gray-900 mt-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4 }}>
+                In Progress
+              </motion.p>
+            </div>
+          </motion.div>
         </div>
       </motion.div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className="flex-1 p-8 overflow-hidden flex items-center justify-center">
+        <div className="max-w-6xl w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentIndex}
@@ -149,106 +185,152 @@ export default function LiveResultsPage() {
             >
               {/* Position Header */}
               <motion.div
-                initial={{ scale: 0.9 }}
-                animate={{ scale: 1 }}
-                className="text-center bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-8 rounded-2xl shadow-xl"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-center space-y-4"
               >
-                <div className="flex items-center justify-center space-x-4 mb-4">
-                  <Crown className="w-12 h-12" />
-                  <h2 className="text-5xl font-bold">{currentPosition.position_name}</h2>
+                <motion.div
+                  className="inline-flex items-center gap-3 bg-blue-50 px-6 py-3 rounded-full border-2 border-blue-200"
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                >
+                  <Zap className="w-5 h-5 text-blue-600" />
+                  <span className="text-lg font-bold text-blue-900">{currentPosition.category}</span>
+                </motion.div>
+
+                <motion.h2
+                  className="text-6xl font-black text-gray-900"
+                  initial={{ y: -50 }}
+                  animate={{ y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {currentPosition.position_name}
+                </motion.h2>
+
+                <motion.p
+                  className="text-xl text-gray-600"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  {currentPosition.candidate_count} Candidates • {currentPosition.total_votes} Votes Cast
+                </motion.p>
+              </motion.div>
+
+              {/* Participation Display */}
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="space-y-6"
+              >
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-8 border-2 border-blue-200">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg font-bold text-gray-900">Participation Level</span>
+                      <motion.span
+                        className="text-3xl font-black text-blue-600"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.6, type: "spring" }}
+                      >
+                        {((currentPosition.total_votes / analytics.totalVotes) * 100 || 0).toFixed(1)}%
+                      </motion.span>
+                    </div>
+                    <motion.div
+                      className="h-8 bg-white rounded-full overflow-hidden border-2 border-blue-300"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ delay: 0.7, duration: 1 }}
+                    >
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${((currentPosition.total_votes / analytics.totalVotes) * 100) || 0}%` }}
+                        transition={{ delay: 0.8, duration: 1.5, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
+                      />
+                    </motion.div>
+                    <p className="text-sm text-gray-600">
+                      {currentPosition.total_votes} of {analytics.totalVotes} total votes
+                    </p>
+                  </div>
                 </div>
-                <p className="text-2xl opacity-90">{currentPosition.category}</p>
-                <div className="mt-4 text-xl">
-                  <span className="bg-white/20 px-4 py-2 rounded-full">{currentPosition.total_votes} votes cast</span>
+
+                <div className="grid grid-cols-3 gap-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <Users className="w-6 h-6 text-blue-600" />
+                      <span className="text-sm font-bold text-gray-600">Candidates</span>
+                    </div>
+                    <motion.p className="text-4xl font-black text-gray-900" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.7 }}>
+                      {currentPosition.candidate_count}
+                    </motion.p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <TrendingUp className="w-6 h-6 text-green-600" />
+                      <span className="text-sm font-bold text-gray-600">Votes This Position</span>
+                    </div>
+                    <motion.p className="text-4xl font-black text-gray-900" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.8 }}>
+                      {currentPosition.total_votes}
+                    </motion.p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <Activity className="w-6 h-6 text-purple-600" />
+                      <span className="text-sm font-bold text-gray-600">Status</span>
+                    </div>
+                    <motion.p className="text-2xl font-black text-purple-600" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.9 }}>
+                      In Progress
+                    </motion.p>
+                  </motion.div>
                 </div>
               </motion.div>
 
-              {/* Candidates */}
-              <div className="space-y-6">
-                {currentPosition.candidates.map((candidate, index) => (
-                  <motion.div
-                    key={candidate.id}
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.2 }}
-                    className={`relative overflow-hidden rounded-2xl shadow-xl ${
-                      index === 0 && candidate.vote_count > 0
-                        ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-white"
-                        : "bg-white border-2 border-gray-200"
-                    }`}
-                  >
-                    <div className="p-8">
-                      <div className="flex items-center space-x-6">
-                        {/* Rank */}
-                        <div
-                          className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${
-                            index === 0 && candidate.vote_count > 0
-                              ? "bg-white/20 text-white"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {index + 1}
-                        </div>
-
-                        {/* Candidate Info */}
-                        <div className="flex-1">
-                          <h3 className="text-3xl font-bold mb-2">{candidate.full_name}</h3>
-                          <div className="flex items-center space-x-6">
-                            <span className="text-2xl font-semibold">{candidate.vote_count} votes</span>
-                            <span className="text-2xl font-semibold">{candidate.percentage.toFixed(1)}%</span>
-                          </div>
-                        </div>
-
-                        {/* Leading Badge */}
-                        {index === 0 && candidate.vote_count > 0 && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-full"
-                          >
-                            <Trophy className="w-6 h-6" />
-                            <span className="text-xl font-bold">LEADING</span>
-                          </motion.div>
-                        )}
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="mt-6">
-                        <div
-                          className={`h-4 rounded-full overflow-hidden ${
-                            index === 0 && candidate.vote_count > 0 ? "bg-white/20" : "bg-gray-200"
-                          }`}
-                        >
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${candidate.percentage}%` }}
-                            transition={{ duration: 1.5, delay: index * 0.2 }}
-                            className={`h-full ${
-                              index === 0 && candidate.vote_count > 0
-                                ? "bg-white"
-                                : "bg-gradient-to-r from-blue-500 to-purple-500"
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Position Counter */}
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-gray-500">
-                <p className="text-xl">
-                  Position {currentIndex + 1} of {results.length}
-                </p>
-                <div className="flex justify-center space-x-2 mt-4">
+              {/* Position Indicator */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="flex items-center justify-center gap-4"
+              >
+                <div className="flex gap-2">
                   {results.map((_, index) => (
-                    <div
+                    <motion.div
                       key={index}
-                      className={`w-3 h-3 rounded-full ${index === currentIndex ? "bg-blue-600" : "bg-gray-300"}`}
+                      className={`h-2 rounded-full transition-all ${
+                        index === currentIndex ? "w-12 bg-blue-600" : "w-2 bg-gray-300"
+                      }`}
+                      animate={{ width: index === currentIndex ? 48 : 8 }}
                     />
                   ))}
                 </div>
+                <motion.p
+                  className="text-gray-600 text-sm font-semibold"
+                  key={`timer-${currentIndex}`}
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                >
+                  Next update in {timeUntilNext}s
+                </motion.p>
               </motion.div>
             </motion.div>
           </AnimatePresence>
@@ -256,12 +338,28 @@ export default function LiveResultsPage() {
       </div>
 
       {/* Footer */}
-      <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="bg-gray-800 text-white p-4">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-lg">
-            Live results update every 3 seconds • Next position in{" "}
-            <span className="font-bold text-blue-400">{8 - Math.floor((Date.now() / 1000) % 8)} seconds</span>
-          </p>
+      <motion.div
+        initial={{ y: 100 }}
+        animate={{ y: 0 }}
+        className="bg-gradient-to-r from-white via-blue-50 to-white border-t-2 border-blue-200 p-4"
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            >
+              <Activity className="w-5 h-5 text-green-600" />
+            </motion.div>
+            <p className="text-gray-800 font-semibold">Live election participation data • Updated every 3 seconds</p>
+          </div>
+          <motion.p
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+            className="text-gray-600 text-sm"
+          >
+            No results shown • Participation tracking only
+          </motion.p>
         </div>
       </motion.div>
     </div>
